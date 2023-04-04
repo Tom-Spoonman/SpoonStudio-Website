@@ -1,0 +1,185 @@
+/* General styles */
+
+html {
+    height: 100%;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    color: #1E2A3A;
+    line-height: 1.6;
+    background-color: #F0F4F8;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    overflow-x: hidden;
+}
+
+main {
+    flex-grow: 1;
+}
+
+a {
+    color: #1E2A3A;
+    text-decoration: none;
+}
+
+/* Section styles */
+section {
+    width: 100%;
+    padding: 3rem 0;
+    text-align: center;
+}
+
+h1 {
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
+h2 {
+font-size: 2rem;
+font-weight: bold;
+margin-bottom: 1rem;
+}
+
+p {
+font-size: 1.2rem;
+max-width: 800px;
+margin: 0 auto;
+}
+
+/* Our Work section */
+.project-grid {
+display: flex;
+flex-wrap: wrap;
+justify-content: center;
+gap: 2rem;
+margin-top: 2rem;
+}
+
+.project {
+width: 300px;
+background-color: #FFFFFF;
+padding: 1rem;
+box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Contact section */
+.contact-info {
+list-style-type: none;
+padding: 0;
+margin-top: 1rem;
+}
+
+.contact-info li {
+font-size: 1.2rem;
+margin-bottom: 1rem;
+}
+
+/* Footer */
+footer {
+    padding: 1rem 0;
+    background-color: #1E2A3A;
+    color: #FFFFFF;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    flex-wrap: nowrap;
+    padding: 1rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.footer-content {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.impressum-link {
+    margin-right: 0;
+}
+
+footer a {
+    color: #FFFFFF;
+}
+
+
+
+/* Light and dark mode */
+:root {
+--bg-color: #F0F4F8;
+--text-color: #1E2A3A;
+--footer-bg: #1E2A3A;
+--footer-text: #FFFFFF;
+}
+
+body.dark-mode {
+--bg-color: #1E2A3A;
+--text-color: #F0F4F8;
+--footer-bg: #F0F4F8;
+--footer-text: #1E2A3A;
+}
+
+body {
+background-color: var(--bg-color);
+color: var(--text-color);
+}
+
+footer {
+background-color: var(--footer-bg);
+color: var(--footer-text);
+}
+
+footer a {
+color: var(--footer-text);
+}
+
+
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2.5rem;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+    }
+
+    p {
+        font-size: 1rem;
+    }
+
+    .project-grid {
+        gap: 1rem;
+    }
+
+    .project {
+        width: 100%;
+    }
+    
+    footer {
+        flex-direction: column;
+    }
+    
+    .footer-content {
+        order: 2;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .copyright {
+        margin-top: 1rem;
+    }
+    
+    .theme-toggle {
+        order: 1;
+        margin-bottom: 1rem;
+    }
+}
