@@ -58,4 +58,37 @@ export const runMigrations = async () => {
       UNIQUE (club_id, user_id)
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS proposed_changes (
+      id UUID PRIMARY KEY,
+      club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      entity TEXT NOT NULL CHECK (entity IN ('movie_watch', 'food_order', 'attendance', 'debt_settlement')),
+      payload JSONB NOT NULL,
+      proposer_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+      created_at TIMESTAMPTZ NOT NULL,
+      resolved_at TIMESTAMPTZ
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS change_votes (
+      id UUID PRIMARY KEY,
+      proposed_change_id UUID NOT NULL REFERENCES proposed_changes(id) ON DELETE CASCADE,
+      voter_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      decision TEXT NOT NULL CHECK (decision IN ('approve', 'reject')),
+      created_at TIMESTAMPTZ NOT NULL,
+      UNIQUE (proposed_change_id, voter_user_id)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committed_change_logs (
+      id UUID PRIMARY KEY,
+      proposed_change_id UUID NOT NULL UNIQUE REFERENCES proposed_changes(id) ON DELETE CASCADE,
+      committed_at TIMESTAMPTZ NOT NULL,
+      committed_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+    );
+  `);
 };

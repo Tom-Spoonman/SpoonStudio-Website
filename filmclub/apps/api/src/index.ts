@@ -1,12 +1,12 @@
 import "dotenv/config";
 import Fastify from "fastify";
-import { randomUUID } from "node:crypto";
-import type { ApprovalPolicy, ProposedChange, User } from "@filmclub/shared";
+import type { ApprovalPolicy, PendingChangeStatus, ProposedChange, User } from "@filmclub/shared";
 import {
   addMembership,
   createClubForUser,
   createSession,
   createUser,
+  findClubById,
   findClubByJoinCode,
   findUserByDisplayName,
   findUserBySessionToken,
@@ -16,11 +16,18 @@ import {
   listMembershipsForUser
 } from "./auth-membership-repo.js";
 import { runMigrations } from "./db.js";
+import {
+  castVoteAndEvaluate,
+  createProposedChange,
+  evaluateProposalStatus,
+  getProposedChangeById,
+  getProposedChangeWithVotes,
+  listProposedChangesForClub,
+  listProposedChangesForClubs
+} from "./proposed-change-repo.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
-
-const proposedChanges: ProposedChange[] = [];
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -160,11 +167,15 @@ app.get<{ Params: { clubId: string } }>("/v1/clubs/:clubId/members", async (requ
   return listClubMembers(request.params.clubId);
 });
 
-app.get<{ Querystring: { clubId?: string } }>("/v1/proposed-changes", async (request, reply) => {
+app.get<{ Querystring: { clubId?: string; status?: PendingChangeStatus } }>("/v1/proposed-changes", async (request, reply) => {
   const user = await getCurrentUser(request.headers.authorization);
   if (!user) {
     reply.code(401);
     return { error: "Unauthorized" };
+  }
+  if (request.query.status && !["pending", "approved", "rejected"].includes(request.query.status)) {
+    reply.code(400);
+    return { error: "Invalid status filter" };
   }
   if (request.query.clubId) {
     const isMember = await isMemberOfClub(request.query.clubId, user.id);
@@ -172,11 +183,13 @@ app.get<{ Querystring: { clubId?: string } }>("/v1/proposed-changes", async (req
       reply.code(403);
       return { error: "Not a member of this club" };
     }
-    return proposedChanges.filter((item) => item.clubId === request.query.clubId);
+    return listProposedChangesForClub(request.query.clubId, request.query.status);
   }
   const memberships = await listMembershipsForUser(user.id);
-  const myClubIds = new Set(memberships.map((item) => item.clubId));
-  return proposedChanges.filter((item) => myClubIds.has(item.clubId));
+  return listProposedChangesForClubs(
+    memberships.map((item) => item.clubId),
+    request.query.status
+  );
 });
 
 app.post<{ Body: Omit<ProposedChange, "id" | "status" | "createdAt"> }>(
@@ -192,21 +205,50 @@ app.post<{ Body: Omit<ProposedChange, "id" | "status" | "createdAt"> }>(
       reply.code(403);
       return { error: "Not a member of this club" };
     }
-    const id = randomUUID();
-    const record: ProposedChange = {
-      id,
+    const club = await findClubById(request.body.clubId);
+    if (!club) {
+      reply.code(404);
+      return { error: "Club not found" };
+    }
+    const created = await createProposedChange({
       clubId: request.body.clubId,
       entity: request.body.entity,
       payload: request.body.payload,
-      proposerUserId: user.id,
-      status: "pending",
-      createdAt: new Date().toISOString()
-    };
-    proposedChanges.push(record);
+      proposerUserId: user.id
+    });
+    const evaluated = await evaluateProposalStatus({
+      proposalId: created.id,
+      clubPolicy: club.approvalPolicy,
+      actorUserId: user.id
+    });
+    if ("error" in evaluated) {
+      reply.code(500);
+      return { error: "Failed to evaluate proposal status" };
+    }
+
     reply.code(201);
-    return record;
+    return evaluated.data.proposal;
   }
 );
+
+app.get<{ Params: { id: string } }>("/v1/proposed-changes/:id", async (request, reply) => {
+  const user = await getCurrentUser(request.headers.authorization);
+  if (!user) {
+    reply.code(401);
+    return { error: "Unauthorized" };
+  }
+  const found = await getProposedChangeWithVotes(request.params.id);
+  if (!found) {
+    reply.code(404);
+    return { error: "Not found" };
+  }
+  const isMember = await isMemberOfClub(found.proposal.clubId, user.id);
+  if (!isMember) {
+    reply.code(403);
+    return { error: "Not a member of this club" };
+  }
+  return found;
+});
 
 app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/approve", async (request, reply) => {
   const user = await getCurrentUser(request.headers.authorization);
@@ -214,7 +256,7 @@ app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/approve", async (
     reply.code(401);
     return { error: "Unauthorized" };
   }
-  const change = proposedChanges.find((item) => item.id === request.params.id);
+  const change = await getProposedChangeById(request.params.id);
   if (!change) {
     reply.code(404);
     return { error: "Not found" };
@@ -224,8 +266,34 @@ app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/approve", async (
     reply.code(403);
     return { error: "Not a member of this club" };
   }
-  change.status = "approved";
-  return change;
+  const club = await findClubById(change.clubId);
+  if (!club) {
+    reply.code(404);
+    return { error: "Club not found" };
+  }
+  const result = await castVoteAndEvaluate({
+    proposalId: change.id,
+    voterUserId: user.id,
+    decision: "approve",
+    clubPolicy: club.approvalPolicy
+  });
+  if ("error" in result) {
+    if (result.error === "already_voted") {
+      reply.code(409);
+      return { error: "You already voted on this proposal" };
+    }
+    if (result.error === "proposer_cannot_vote") {
+      reply.code(409);
+      return { error: "Proposer cannot vote on own proposal" };
+    }
+    if (result.error === "already_resolved") {
+      reply.code(409);
+      return { error: "Proposal is already resolved" };
+    }
+    reply.code(404);
+    return { error: "Not found" };
+  }
+  return result.data;
 });
 
 app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/reject", async (request, reply) => {
@@ -234,7 +302,7 @@ app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/reject", async (r
     reply.code(401);
     return { error: "Unauthorized" };
   }
-  const change = proposedChanges.find((item) => item.id === request.params.id);
+  const change = await getProposedChangeById(request.params.id);
   if (!change) {
     reply.code(404);
     return { error: "Not found" };
@@ -244,8 +312,34 @@ app.post<{ Params: { id: string } }>("/v1/proposed-changes/:id/reject", async (r
     reply.code(403);
     return { error: "Not a member of this club" };
   }
-  change.status = "rejected";
-  return change;
+  const club = await findClubById(change.clubId);
+  if (!club) {
+    reply.code(404);
+    return { error: "Club not found" };
+  }
+  const result = await castVoteAndEvaluate({
+    proposalId: change.id,
+    voterUserId: user.id,
+    decision: "reject",
+    clubPolicy: club.approvalPolicy
+  });
+  if ("error" in result) {
+    if (result.error === "already_voted") {
+      reply.code(409);
+      return { error: "You already voted on this proposal" };
+    }
+    if (result.error === "proposer_cannot_vote") {
+      reply.code(409);
+      return { error: "Proposer cannot vote on own proposal" };
+    }
+    if (result.error === "already_resolved") {
+      reply.code(409);
+      return { error: "Proposal is already resolved" };
+    }
+    reply.code(404);
+    return { error: "Not found" };
+  }
+  return result.data;
 });
 
 const start = async () => {

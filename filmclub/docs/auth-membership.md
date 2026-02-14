@@ -6,7 +6,7 @@ This documents the first working slice for authentication and multi-club members
 1. Auth and membership entities are persisted in PostgreSQL (`users`, `sessions`, `clubs`, `club_memberships`).
 2. API startup runs idempotent table migrations in `apps/api/src/db.ts`.
 3. Auth is bearer token session auth intended for development speed.
-4. Proposed changes are still in-memory in phase 1 and will move to DB in the trust-confirmation phase.
+4. Trust-confirmation persistence is documented separately in `docs/trust-confirmation.md`.
 
 ## Endpoints
 
@@ -116,6 +116,6 @@ Access rule:
 - Caller must be a member of the target club.
 
 ## Next step toward production
-1. Move users/sessions/clubs/memberships to PostgreSQL.
-2. Replace display-name login with magic-link or OAuth.
-3. Hash/rotate join codes and add optional expiry/revocation.
+1. Replace display-name login with magic-link or OAuth.
+2. Hash/rotate join codes and add optional expiry/revocation.
+3. Add session expiry/refresh and logout endpoints.

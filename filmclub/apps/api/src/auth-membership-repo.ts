@@ -161,6 +161,18 @@ export const findClubByJoinCode = async (joinCode: string) => {
   return result.rows[0] ? mapClub(result.rows[0]) : null;
 };
 
+export const findClubById = async (clubId: string) => {
+  const result = await pool.query<DbClubRow>(
+    `
+    SELECT id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+    FROM clubs
+    WHERE id = $1
+    `,
+    [clubId]
+  );
+  return result.rows[0] ? mapClub(result.rows[0]) : null;
+};
+
 export const findMembership = async (clubId: string, userId: string) => {
   const result = await pool.query<DbMembershipRow>(
     `
@@ -272,4 +284,16 @@ export const listClubMembers = async (clubId: string) => {
 export const isMemberOfClub = async (clubId: string, userId: string) => {
   const membership = await findMembership(clubId, userId);
   return membership !== null;
+};
+
+export const countClubMembers = async (clubId: string) => {
+  const result = await pool.query<{ count: string }>(
+    `
+    SELECT COUNT(*)::text AS count
+    FROM club_memberships
+    WHERE club_id = $1
+    `,
+    [clubId]
+  );
+  return Number(result.rows[0]?.count ?? "0");
 };

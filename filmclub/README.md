@@ -36,6 +36,7 @@ Starter development environment for the Filmclub companion web app.
 - Architecture recommendation: `docs/architecture.md`
 - Auth + membership API (phase 1): `docs/auth-membership.md`
 - Implementation plan: `docs/implementation-plan.md`
+- Trust confirmation (phase 2): `docs/trust-confirmation.md`
 
 ## Suggested deployment split
 - `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`

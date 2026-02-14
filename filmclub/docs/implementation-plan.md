@@ -7,7 +7,7 @@
 4. Add debt ledger foundations (balances first).
 5. Hardening and documentation updates each slice.
 
-## Step 1 scope (in progress)
+## Step 1 scope (completed)
 1. Add DB schema/migrations for:
    - `users`
    - `sessions`
@@ -26,3 +26,18 @@
 1. Added PostgreSQL migration bootstrap in `apps/api/src/db.ts`.
 2. Added repository layer in `apps/api/src/auth-membership-repo.ts`.
 3. Refactored `apps/api/src/index.ts` auth/membership endpoints to DB-backed queries.
+
+## Step 2 scope (in progress)
+1. Add DB schema/migrations for:
+   - `proposed_changes`
+   - `change_votes`
+   - `committed_change_logs`
+2. Replace in-memory proposal/voting state with PostgreSQL queries and transactions.
+3. Apply per-club approval policy on each vote.
+4. Keep API endpoints stable and add details endpoint for proposal + votes.
+
+## Step 2 progress notes
+1. Added proposed-change/vote/commit-log tables in API migrations.
+2. Added repository logic for proposal creation, voting, and status evaluation.
+3. Updated proposal endpoints to PostgreSQL-backed behavior.
+4. Added `docs/trust-confirmation.md`.

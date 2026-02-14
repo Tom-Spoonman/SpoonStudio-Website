@@ -1,6 +1,7 @@
 export type RecordEntity = "movie_watch" | "food_order" | "attendance" | "debt_settlement";
 
 export type PendingChangeStatus = "pending" | "approved" | "rejected";
+export type ChangeVoteDecision = "approve" | "reject";
 
 export type ApprovalThresholdMode = "unanimous" | "majority" | "fixed";
 
@@ -42,4 +43,18 @@ export interface ProposedChange<TPayload = unknown> {
   proposerUserId: string;
   status: PendingChangeStatus;
   createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface ChangeVote {
+  id: string;
+  proposedChangeId: string;
+  voterUserId: string;
+  decision: ChangeVoteDecision;
+  createdAt: string;
+}
+
+export interface ProposedChangeWithVotes<TPayload = unknown> {
+  proposal: ProposedChange<TPayload>;
+  votes: ChangeVote[];
 }

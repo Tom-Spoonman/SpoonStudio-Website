@@ -78,4 +78,5 @@ Implemented in API (PostgreSQL-backed):
 
 Current tradeoff:
 - Auth/membership data is durable.
-- Proposed change entities are still in-memory until trust-confirmation persistence is implemented.
+- Proposal, vote, and commit-log entities are now persisted.
+- Single-member clubs are auto-resolved at proposal creation due zero eligible non-proposer voters.
