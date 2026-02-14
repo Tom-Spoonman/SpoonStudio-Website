@@ -1,0 +1,22 @@
+{
+  "name": "filmclub",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm run dev --workspace @filmclub/web",
+    "dev:api": "npm run dev --workspace @filmclub/api",
+    "build": "npm run build --workspace @filmclub/shared && npm run build --workspace @filmclub/api && npm run build --workspace @filmclub/web",
+    "typecheck": "npm run typecheck --workspace @filmclub/shared && npm run typecheck --workspace @filmclub/api && npm run typecheck --workspace @filmclub/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

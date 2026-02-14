@@ -1,0 +1,41 @@
+# Filmclub App
+
+Starter development environment for the Filmclub companion web app.
+
+## Stack
+- Frontend: Next.js 15 + React + TypeScript (`apps/web`)
+- Backend API: Fastify + TypeScript (`apps/api`)
+- Shared contracts/types: TypeScript package (`packages/shared`)
+- Data: PostgreSQL (Docker)
+- Caching/queues (future): Redis (Docker)
+
+## Prerequisites
+- Node.js 20+
+- npm 10+
+- Docker Desktop
+
+## Quick start
+1. Copy env files:
+   - `cp .env.example .env` (PowerShell: `Copy-Item .env.example .env`)
+2. Start local infrastructure:
+   - `docker compose up -d`
+3. Install dependencies:
+   - `npm install`
+4. Run all apps:
+   - `npm run dev`
+
+## Workspace scripts
+- `npm run dev` - Runs web and API in parallel
+- `npm run dev:web` - Runs Next.js app on `http://localhost:3000`
+- `npm run dev:api` - Runs API on `http://localhost:4000`
+- `npm run build` - Builds all workspaces
+- `npm run typecheck` - Type-checks all workspaces
+
+## Documentation
+- Requirements: `docs/requirements.md`
+- Architecture recommendation: `docs/architecture.md`
+
+## Suggested deployment split
+- `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`
+- API (`apps/api`) -> deploy as separate service (e.g., Fly.io, Railway, Render, or VPS)
+- Managed PostgreSQL for production

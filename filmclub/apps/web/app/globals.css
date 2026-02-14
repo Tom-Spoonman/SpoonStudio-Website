@@ -1,0 +1,55 @@
+:root {
+  --bg: #f6f3ed;
+  --ink: #1a1f2b;
+  --accent: #c05621;
+  --card: #fffdfa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at top right, #efe7db, var(--bg));
+  color: var(--ink);
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid #e0d7c8;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  background: #f0e5d6;
+  color: #4b2b1c;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+h1 {
+  margin-top: 0;
+  font-size: 2.2rem;
+}
+
+h2 {
+  margin-bottom: 0.25rem;
+}
+
+code {
+  background: #efe7db;
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+}
