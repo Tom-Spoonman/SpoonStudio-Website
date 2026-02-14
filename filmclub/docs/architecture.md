@@ -67,7 +67,7 @@ Trust-confirmation workflow:
 5. Notifications (optional)
 
 ## Auth + Membership implementation slice (current)
-Implemented in API (in-memory store for now):
+Implemented in API (PostgreSQL-backed):
 1. `POST /v1/auth/register` -> create user + return bearer token
 2. `POST /v1/auth/login` -> login existing user by display name + return token
 3. `GET /v1/me` -> resolve current user from bearer token
@@ -77,5 +77,5 @@ Implemented in API (in-memory store for now):
 7. `GET /v1/clubs/:clubId/members` -> list members for a club (member-only access)
 
 Current tradeoff:
-- Persistence is in-memory to move quickly through domain modeling.
-- Next step is migrating these entities to PostgreSQL tables with durable sessions/memberships.
+- Auth/membership data is durable.
+- Proposed change entities are still in-memory until trust-confirmation persistence is implemented.

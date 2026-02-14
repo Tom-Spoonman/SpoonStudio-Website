@@ -35,8 +35,12 @@ Starter development environment for the Filmclub companion web app.
 - Requirements: `docs/requirements.md`
 - Architecture recommendation: `docs/architecture.md`
 - Auth + membership API (phase 1): `docs/auth-membership.md`
+- Implementation plan: `docs/implementation-plan.md`
 
 ## Suggested deployment split
 - `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`
 - API (`apps/api`) -> deploy as separate service (e.g., Fly.io, Railway, Render, or VPS)
 - Managed PostgreSQL for production
+
+## Local Postgres note
+- This project maps Postgres to host port `55432` to avoid conflicts with local PostgreSQL installations on `5432`.

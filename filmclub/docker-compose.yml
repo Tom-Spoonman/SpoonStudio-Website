@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: filmclub
       POSTGRES_DB: filmclub
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - filmclub_pg_data:/var/lib/postgresql/data
 

@@ -3,9 +3,10 @@
 This documents the first working slice for authentication and multi-club membership.
 
 ## Notes
-1. Current implementation uses in-memory arrays in `apps/api/src/index.ts`.
-2. Restarting API clears users, sessions, clubs, memberships.
+1. Auth and membership entities are persisted in PostgreSQL (`users`, `sessions`, `clubs`, `club_memberships`).
+2. API startup runs idempotent table migrations in `apps/api/src/db.ts`.
 3. Auth is bearer token session auth intended for development speed.
+4. Proposed changes are still in-memory in phase 1 and will move to DB in the trust-confirmation phase.
 
 ## Endpoints
 
