@@ -15,6 +15,7 @@ Your app has collaborative state, financial-like records, and approval workflows
 2. Backend:
    - Fastify API service
    - Domain modules: Auth, Members, Events, Orders, Ledger, Ratings, Approvals
+   - Bearer token session auth for local/dev (migrate to managed auth provider in production)
 3. Database:
    - PostgreSQL as source of truth
    - Event/outbox table for audit trail and future notifications
@@ -44,7 +45,7 @@ Trust-confirmation workflow:
 
 ## Deployment recommendation for spoon.studio
 1. Web:
-   - Deploy `apps/web` under `filmclub.spoon.studio` (preferred) or `/filmclub`.
+   - Deploy `apps/web` under `filmclub.spoon.studio` (confirmed target).
 2. API:
    - Deploy `apps/api` as separate service (e.g., `api-filmclub.spoon.studio`).
 3. Database:
@@ -64,3 +65,17 @@ Trust-confirmation workflow:
 3. Food order + debt ledger
 4. Ratings + history dashboard
 5. Notifications (optional)
+
+## Auth + Membership implementation slice (current)
+Implemented in API (in-memory store for now):
+1. `POST /v1/auth/register` -> create user + return bearer token
+2. `POST /v1/auth/login` -> login existing user by display name + return token
+3. `GET /v1/me` -> resolve current user from bearer token
+4. `POST /v1/clubs` -> create club with per-club approval policy and generated join code
+5. `POST /v1/clubs/join` -> self-join by join code
+6. `GET /v1/me/clubs` -> list clubs current user belongs to
+7. `GET /v1/clubs/:clubId/members` -> list members for a club (member-only access)
+
+Current tradeoff:
+- Persistence is in-memory to move quickly through domain modeling.
+- Next step is migrating these entities to PostgreSQL tables with durable sessions/memberships.

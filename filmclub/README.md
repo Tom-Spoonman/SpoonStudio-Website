@@ -34,6 +34,7 @@ Starter development environment for the Filmclub companion web app.
 ## Documentation
 - Requirements: `docs/requirements.md`
 - Architecture recommendation: `docs/architecture.md`
+- Auth + membership API (phase 1): `docs/auth-membership.md`
 
 ## Suggested deployment split
 - `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`

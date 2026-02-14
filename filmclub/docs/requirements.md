@@ -20,6 +20,12 @@ Filmclub is a web companion app for a recurring in-person movie-night group.
    - Who approved/rejected
    - Timestamps and final outcome
 7. The app must be usable by a closed group with authenticated members.
+8. The system must support multiple independent clubs with strict data isolation by club.
+9. The system must support self-join membership by join code.
+10. The approval threshold model must be configurable per club with these options:
+   - `unanimous`
+   - `majority`
+   - `fixed` number of approvals from 1..n
 
 ## Non-functional requirements
 1. The app must be available on the web and deployable under the spoon.studio domain.
@@ -27,9 +33,11 @@ Filmclub is a web companion app for a recurring in-person movie-night group.
 3. The trust-confirmation process must be tamper-evident from an audit perspective.
 4. The app should be optimized for phone usage during movie nights.
 5. The architecture should allow adding future modules without major rewrites.
+6. Production deployment target should use `filmclub.spoon.studio` for the web app.
 
-## Clarifications to confirm with you
-1. Approval threshold model: unanimous, majority, or configurable per group?
-2. Membership model: invite-only, admin-managed, or self-join with code?
-3. Debt settlement scope: only track balances, or include payment confirmation flow?
-4. Privacy model: one global group vs multiple independent filmclubs?
+## Confirmed clarifications
+1. Approval threshold model: configurable per group with `unanimous`, `majority`, or `fixed` count (1..n).
+2. Membership model: self-join with code.
+3. Debt settlement scope (phase 1): track balances only.
+4. Debt settlement scope (later): order placer/takeover member can send debt reminders.
+5. Privacy model: multiple independent filmclubs.

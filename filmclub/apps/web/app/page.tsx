@@ -15,11 +15,11 @@ export default async function HomePage() {
         <p>Using <code>{apiBase}</code></p>
       </div>
       <div className="card">
-        <h2>Next Build Targets</h2>
-        <p>1. Auth and group membership</p>
-        <p>2. Movie-night records with trust confirmation</p>
-        <p>3. Food orders and debt settlement ledger</p>
-        <p>4. Ratings, stats, and history</p>
+        <h2>Build Status</h2>
+        <p>1. Auth and club membership: implemented (phase 1)</p>
+        <p>2. Movie-night records with trust confirmation: next</p>
+        <p>3. Food orders and debt settlement ledger: planned</p>
+        <p>4. Ratings, stats, and history: planned</p>
       </div>
     </main>
   );
