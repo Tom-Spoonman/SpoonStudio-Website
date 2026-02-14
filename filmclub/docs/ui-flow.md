@@ -17,14 +17,14 @@ Behavior:
 1. Auth token is stored in browser `localStorage` (`filmclub_token`).
 2. API calls include `Authorization: Bearer <token>`.
 3. Club context is selected from "My Clubs".
-4. Proposal payload is entered as JSON text for now.
+4. Proposal creation now uses typed form inputs per entity type.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
 2. No dedicated routing yet (`/login`, `/clubs/:id`, etc.).
-3. Payload editor is raw JSON and not domain-specific forms yet.
+3. Debt-settlement still uses user-id text fields; member pickers are not implemented yet.
 
 ## Next UI improvements
 1. Split into routes/components (`/auth`, `/clubs`, `/clubs/:id/proposals`).
-2. Add typed forms for each proposal entity.
+2. Replace debt-settlement user-id text fields with member selectors.
 3. Replace local token storage with more secure session handling.

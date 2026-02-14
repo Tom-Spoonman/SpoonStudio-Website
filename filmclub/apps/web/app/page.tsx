@@ -70,21 +70,6 @@ interface ProposalDetails {
   votes: ChangeVote[];
 }
 
-const defaultPayloadByEntity: Record<RecordEntity, unknown> = {
-  movie_watch: { title: "", watchedOn: "" },
-  food_order: { vendor: "", totalCost: 0, currency: "EUR" },
-  attendance: { attendees: [] },
-  debt_settlement: { fromUserId: "", toUserId: "", amount: 0, currency: "EUR" }
-};
-
-const tryParseJson = (value: string) => {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
 export default function HomePage() {
   const [health, setHealth] = useState<string>("checking");
   const [token, setToken] = useState<string>("");
@@ -105,9 +90,16 @@ export default function HomePage() {
   const [fixedApprovals, setFixedApprovals] = useState(2);
 
   const [proposalEntity, setProposalEntity] = useState<RecordEntity>("movie_watch");
-  const [proposalPayloadText, setProposalPayloadText] = useState(
-    JSON.stringify(defaultPayloadByEntity.movie_watch, null, 2)
-  );
+  const [movieTitle, setMovieTitle] = useState("");
+  const [movieWatchedOn, setMovieWatchedOn] = useState("");
+  const [foodVendor, setFoodVendor] = useState("");
+  const [foodTotalCost, setFoodTotalCost] = useState("0");
+  const [foodCurrency, setFoodCurrency] = useState("EUR");
+  const [attendanceNames, setAttendanceNames] = useState("");
+  const [debtFromUserId, setDebtFromUserId] = useState("");
+  const [debtToUserId, setDebtToUserId] = useState("");
+  const [debtAmount, setDebtAmount] = useState("0");
+  const [debtCurrency, setDebtCurrency] = useState("EUR");
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -306,11 +298,59 @@ export default function HomePage() {
       setMessage("Select a club first.");
       return;
     }
-    const payload = tryParseJson(proposalPayloadText);
-    if (payload === null) {
-      setMessage("Proposal payload must be valid JSON.");
-      return;
+    let payload: unknown = {};
+    if (proposalEntity === "movie_watch") {
+      if (!movieTitle.trim() || !movieWatchedOn.trim()) {
+        setMessage("Movie title and watched-on date are required.");
+        return;
+      }
+      payload = {
+        title: movieTitle.trim(),
+        watchedOn: movieWatchedOn.trim()
+      };
+    } else if (proposalEntity === "food_order") {
+      if (!foodVendor.trim()) {
+        setMessage("Food vendor is required.");
+        return;
+      }
+      const totalCost = Number(foodTotalCost);
+      if (!Number.isFinite(totalCost) || totalCost < 0) {
+        setMessage("Food total cost must be a non-negative number.");
+        return;
+      }
+      payload = {
+        vendor: foodVendor.trim(),
+        totalCost,
+        currency: foodCurrency.trim().toUpperCase()
+      };
+    } else if (proposalEntity === "attendance") {
+      const attendees = attendanceNames
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      if (attendees.length === 0) {
+        setMessage("At least one attendee is required.");
+        return;
+      }
+      payload = { attendees };
+    } else if (proposalEntity === "debt_settlement") {
+      if (!debtFromUserId.trim() || !debtToUserId.trim()) {
+        setMessage("From/To user ids are required.");
+        return;
+      }
+      const amount = Number(debtAmount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        setMessage("Debt amount must be a non-negative number.");
+        return;
+      }
+      payload = {
+        fromUserId: debtFromUserId.trim(),
+        toUserId: debtToUserId.trim(),
+        amount,
+        currency: debtCurrency.trim().toUpperCase()
+      };
     }
+
     setBusy(true);
     const response = await fetch(`${apiBase}/v1/proposed-changes`, {
       method: "POST",
@@ -446,7 +486,6 @@ export default function HomePage() {
                     onChange={(event) => {
                       const entity = event.target.value as RecordEntity;
                       setProposalEntity(entity);
-                      setProposalPayloadText(JSON.stringify(defaultPayloadByEntity[entity], null, 2));
                     }}
                   >
                     <option value="movie_watch">movie_watch</option>
@@ -454,11 +493,76 @@ export default function HomePage() {
                     <option value="attendance">attendance</option>
                     <option value="debt_settlement">debt_settlement</option>
                   </select>
-                  <textarea
-                    value={proposalPayloadText}
-                    onChange={(event) => setProposalPayloadText(event.target.value)}
-                    rows={8}
-                  />
+                  {proposalEntity === "movie_watch" && (
+                    <div className="stack">
+                      <input
+                        placeholder="Movie title"
+                        value={movieTitle}
+                        onChange={(event) => setMovieTitle(event.target.value)}
+                      />
+                      <input
+                        type="date"
+                        value={movieWatchedOn}
+                        onChange={(event) => setMovieWatchedOn(event.target.value)}
+                      />
+                    </div>
+                  )}
+                  {proposalEntity === "food_order" && (
+                    <div className="stack">
+                      <input
+                        placeholder="Vendor"
+                        value={foodVendor}
+                        onChange={(event) => setFoodVendor(event.target.value)}
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={foodTotalCost}
+                        onChange={(event) => setFoodTotalCost(event.target.value)}
+                      />
+                      <input
+                        placeholder="Currency (e.g. EUR)"
+                        value={foodCurrency}
+                        onChange={(event) => setFoodCurrency(event.target.value)}
+                      />
+                    </div>
+                  )}
+                  {proposalEntity === "attendance" && (
+                    <div className="stack">
+                      <input
+                        placeholder="Comma-separated attendee names"
+                        value={attendanceNames}
+                        onChange={(event) => setAttendanceNames(event.target.value)}
+                      />
+                    </div>
+                  )}
+                  {proposalEntity === "debt_settlement" && (
+                    <div className="stack">
+                      <input
+                        placeholder="From user id"
+                        value={debtFromUserId}
+                        onChange={(event) => setDebtFromUserId(event.target.value)}
+                      />
+                      <input
+                        placeholder="To user id"
+                        value={debtToUserId}
+                        onChange={(event) => setDebtToUserId(event.target.value)}
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={debtAmount}
+                        onChange={(event) => setDebtAmount(event.target.value)}
+                      />
+                      <input
+                        placeholder="Currency (e.g. EUR)"
+                        value={debtCurrency}
+                        onChange={(event) => setDebtCurrency(event.target.value)}
+                      />
+                    </div>
+                  )}
                   <button type="submit" disabled={busy}>Submit Proposal</button>
                 </form>
               </div>

@@ -52,3 +52,4 @@
 1. Added UI workflow implementation in `apps/web/app/page.tsx`.
 2. Added styling/layout support in `apps/web/app/globals.css`.
 3. Added `docs/ui-flow.md`.
+4. Replaced raw JSON proposal editor with typed per-entity form inputs.
