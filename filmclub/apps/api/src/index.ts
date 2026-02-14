@@ -28,6 +28,19 @@ import {
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
+const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+
+app.addHook("onRequest", async (request, reply) => {
+  reply.header("Access-Control-Allow-Origin", corsOrigin);
+  reply.header("Vary", "Origin");
+  reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (request.method === "OPTIONS") {
+    reply.code(204);
+    return reply.send();
+  }
+});
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 

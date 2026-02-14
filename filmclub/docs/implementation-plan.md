@@ -41,3 +41,14 @@
 2. Added repository logic for proposal creation, voting, and status evaluation.
 3. Updated proposal endpoints to PostgreSQL-backed behavior.
 4. Added `docs/trust-confirmation.md`.
+
+## Step 3 scope (in progress)
+1. Add auth screens (register/login) and session handling in web app.
+2. Add club create/join/switch flow.
+3. Add proposal create/list/detail/vote flow.
+4. Document UI behavior and current tradeoffs.
+
+## Step 3 progress notes
+1. Added UI workflow implementation in `apps/web/app/page.tsx`.
+2. Added styling/layout support in `apps/web/app/globals.css`.
+3. Added `docs/ui-flow.md`.

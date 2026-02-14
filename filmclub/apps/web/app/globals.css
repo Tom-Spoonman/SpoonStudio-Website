@@ -53,3 +53,75 @@ code {
   border-radius: 6px;
   padding: 0.1rem 0.35rem;
 }
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #ccbda8;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: #fffdfa;
+}
+
+textarea,
+pre {
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+button {
+  border: 1px solid #b18f6d;
+  background: #f0e5d6;
+  color: #40251a;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.active {
+  background: #dcb385;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.stack {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+pre {
+  margin: 0;
+  padding: 0.8rem;
+  background: #efe7db;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+@media (min-width: 820px) {
+  .grid2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
