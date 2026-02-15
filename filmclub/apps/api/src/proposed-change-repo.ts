@@ -9,7 +9,7 @@ import type {
   RecordEntity
 } from "@filmclub/shared";
 import { pool } from "./db.js";
-import { applyApprovedFoodOrderProposal } from "./ledger-repo.js";
+import { applyApprovedDebtSettlementProposal, applyApprovedFoodOrderProposal } from "./ledger-repo.js";
 
 interface DbProposedChangeRow {
   id: string;
@@ -96,6 +96,17 @@ const applyProposalSideEffects = async (
 ) => {
   if (params.proposal.entity === "food_order") {
     const applied = await applyApprovedFoodOrderProposal(client, {
+      proposalId: params.proposal.id,
+      clubId: params.proposal.clubId,
+      proposerUserId: params.proposal.proposerUserId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  if (params.proposal.entity === "debt_settlement") {
+    const applied = await applyApprovedDebtSettlementProposal(client, {
       proposalId: params.proposal.id,
       clubId: params.proposal.clubId,
       proposerUserId: params.proposal.proposerUserId,
@@ -288,7 +299,7 @@ export const castVoteAndEvaluate = async (params: {
         const sideEffectResult = await applyProposalSideEffects({ proposal }, client);
         if ("error" in sideEffectResult) {
           await client.query("ROLLBACK");
-          return { error: "invalid_payload" as const };
+          return { error: "invalid_execution_payload" as const };
         }
       }
       await client.query(
@@ -385,7 +396,7 @@ export const evaluateProposalStatus = async (params: {
         const sideEffectResult = await applyProposalSideEffects({ proposal }, client);
         if ("error" in sideEffectResult) {
           await client.query("ROLLBACK");
-          return { error: "invalid_payload" as const };
+          return { error: "invalid_execution_payload" as const };
         }
       }
       await client.query(

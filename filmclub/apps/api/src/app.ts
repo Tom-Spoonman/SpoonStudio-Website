@@ -24,7 +24,8 @@ import {
   listProposedChangesForClub,
   listProposedChangesForClubs
 } from "./proposed-change-repo.js";
-import { listClubBalances } from "./ledger-repo.js";
+import { listClubBalanceSummary, listClubBalances, listClubDebtMatrix } from "./ledger-repo.js";
+import { isValidPayloadForEntity } from "./proposal-payload.js";
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -340,6 +341,10 @@ export const createApp = () => {
         reply.code(404);
         return { error: "Club not found" };
       }
+      if (!isValidPayloadForEntity(request.body.entity, request.body.payload)) {
+        reply.code(400);
+        return { error: "Invalid payload for selected entity" };
+      }
       const created = await createProposedChange({
         clubId: request.body.clubId,
         entity: request.body.entity,
@@ -352,7 +357,7 @@ export const createApp = () => {
         actorUserId: user.id
       });
       if ("error" in evaluated) {
-        if (evaluated.error === "invalid_payload") {
+        if (evaluated.error === "invalid_execution_payload") {
           reply.code(400);
           return { error: "Invalid proposal payload for selected entity" };
         }
@@ -372,7 +377,8 @@ export const createApp = () => {
       totalCost: number;
       currency: string;
       payerUserId: string;
-      participantUserIds: string[];
+      participantUserIds?: string[];
+      participantShares?: Array<{ userId: string; amount: number }>;
     };
   }>(
     "/v1/food-orders",
@@ -380,7 +386,7 @@ export const createApp = () => {
       schema: {
         body: {
           type: "object",
-          required: ["clubId", "vendor", "totalCost", "currency", "payerUserId", "participantUserIds"],
+          required: ["clubId", "vendor", "totalCost", "currency", "payerUserId"],
           properties: {
             clubId: { type: "string", minLength: 1 },
             vendor: { type: "string", minLength: 1 },
@@ -389,8 +395,20 @@ export const createApp = () => {
             payerUserId: { type: "string", minLength: 1 },
             participantUserIds: {
               type: "array",
-              minItems: 1,
+              minItems: 0,
               items: { type: "string", minLength: 1 }
+            },
+            participantShares: {
+              type: "array",
+              minItems: 0,
+              items: {
+                type: "object",
+                required: ["userId", "amount"],
+                properties: {
+                  userId: { type: "string", minLength: 1 },
+                  amount: { type: "number", minimum: 0 }
+                }
+              }
             }
           }
         }
@@ -412,16 +430,22 @@ export const createApp = () => {
         reply.code(404);
         return { error: "Club not found" };
       }
+      const foodOrderPayload = {
+        vendor: request.body.vendor.trim(),
+        totalCost: request.body.totalCost,
+        currency: request.body.currency.trim().toUpperCase(),
+        payerUserId: request.body.payerUserId,
+        participantUserIds: request.body.participantUserIds,
+        participantShares: request.body.participantShares
+      };
+      if (!isValidPayloadForEntity("food_order", foodOrderPayload)) {
+        reply.code(400);
+        return { error: "Invalid food order payload" };
+      }
       const created = await createProposedChange({
         clubId: request.body.clubId,
         entity: "food_order",
-        payload: {
-          vendor: request.body.vendor.trim(),
-          totalCost: request.body.totalCost,
-          currency: request.body.currency.trim().toUpperCase(),
-          payerUserId: request.body.payerUserId,
-          participantUserIds: request.body.participantUserIds
-        },
+        payload: foodOrderPayload,
         proposerUserId: user.id
       });
       const evaluated = await evaluateProposalStatus({
@@ -430,7 +454,7 @@ export const createApp = () => {
         actorUserId: user.id
       });
       if ("error" in evaluated) {
-        if (evaluated.error === "invalid_payload") {
+        if (evaluated.error === "invalid_execution_payload") {
           reply.code(400);
           return { error: "Invalid food order payload" };
         }
@@ -467,6 +491,39 @@ export const createApp = () => {
         return { error: "Not a member of this club" };
       }
       return listClubBalances(request.params.clubId, request.query.currency);
+    }
+  );
+
+  app.get<{ Params: { clubId: string }; Querystring: { currency?: string } }>(
+    "/v1/clubs/:clubId/balance-overview",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        querystring: {
+          type: "object",
+          properties: {
+            currency: { type: "string", minLength: 1, maxLength: 8 }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      const [balances, summary, matrix] = await Promise.all([
+        listClubBalances(request.params.clubId, request.query.currency),
+        listClubBalanceSummary(request.params.clubId, request.query.currency),
+        listClubDebtMatrix(request.params.clubId, request.query.currency)
+      ]);
+      return { balances, summary, matrix };
     }
   );
 
@@ -536,7 +593,7 @@ export const createApp = () => {
           reply.code(409);
           return { error: "Proposal is already resolved" };
         }
-        if (result.error === "invalid_payload") {
+        if (result.error === "invalid_execution_payload") {
           reply.code(400);
           return { error: "Invalid proposal payload for execution" };
         }
@@ -590,7 +647,7 @@ export const createApp = () => {
           reply.code(409);
           return { error: "Proposal is already resolved" };
         }
-        if (result.error === "invalid_payload") {
+        if (result.error === "invalid_execution_payload") {
           reply.code(400);
           return { error: "Invalid proposal payload for execution" };
         }

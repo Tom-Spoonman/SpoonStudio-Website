@@ -58,3 +58,25 @@ export interface ProposedChangeWithVotes<TPayload = unknown> {
   proposal: ProposedChange<TPayload>;
   votes: ChangeVote[];
 }
+
+export interface FoodOrderShare {
+  userId: string;
+  amount: number;
+}
+
+export interface FoodOrderPayload {
+  vendor: string;
+  totalCost: number;
+  currency: string;
+  payerUserId: string;
+  participantUserIds?: string[];
+  participantShares?: FoodOrderShare[];
+}
+
+export interface DebtSettlementPayload {
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  currency: string;
+  note?: string;
+}

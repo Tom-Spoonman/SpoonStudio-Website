@@ -90,7 +90,8 @@ const createFoodOrder = async (
     totalCost: number;
     currency: string;
     payerUserId: string;
-    participantUserIds: string[];
+    participantUserIds?: string[];
+    participantShares?: Array<{ userId: string; amount: number }>;
   }
 ) => {
   const response = await app.inject({
@@ -277,6 +278,144 @@ test("food order creates ledger and balances per member", async () => {
     assert.equal(aliceBalance?.netAmount, 20);
     assert.equal(bobBalance?.netAmount, -10);
     assert.equal(carolBalance?.netAmount, -10);
+  } finally {
+    await app.close();
+  }
+});
+
+test("food order supports custom shares", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Custom Split Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const proposal = await createFoodOrder(app, alice.token, {
+      clubId: club.club.id,
+      vendor: "Sushi",
+      totalCost: 30,
+      currency: "EUR",
+      payerUserId: alice.user.id,
+      participantShares: [
+        { userId: alice.user.id, amount: 10 },
+        { userId: bob.user.id, amount: 15 },
+        { userId: carol.user.id, amount: 5 }
+      ]
+    });
+    const approveBob = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    assert.equal(approveBob.statusCode, 200);
+    const approveCarol = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+    assert.equal(approveCarol.statusCode, 200);
+
+    const balancesResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/balances?currency=EUR`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    const balances = balancesResponse.json() as Array<{ userId: string; netAmount: number }>;
+    const aliceBalance = balances.find((entry) => entry.userId === alice.user.id);
+    const bobBalance = balances.find((entry) => entry.userId === bob.user.id);
+    const carolBalance = balances.find((entry) => entry.userId === carol.user.id);
+    assert.equal(aliceBalance?.netAmount, 20);
+    assert.equal(bobBalance?.netAmount, -15);
+    assert.equal(carolBalance?.netAmount, -5);
+  } finally {
+    await app.close();
+  }
+});
+
+test("debt settlement proposal offsets balances after approval", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Settlement Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const orderProposal = await createFoodOrder(app, alice.token, {
+      clubId: club.club.id,
+      vendor: "Burger",
+      totalCost: 30,
+      currency: "EUR",
+      payerUserId: alice.user.id,
+      participantUserIds: [alice.user.id, bob.user.id, carol.user.id]
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${orderProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${orderProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+
+    const settlementCreate = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "debt_settlement",
+        payload: {
+          fromUserId: bob.user.id,
+          toUserId: alice.user.id,
+          amount: 4,
+          currency: "EUR",
+          note: "Partial repayment"
+        }
+      }
+    });
+    assert.equal(settlementCreate.statusCode, 201);
+    const settlementProposal = settlementCreate.json() as { id: string };
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${settlementProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${settlementProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+
+    const overviewResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/balance-overview?currency=EUR`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(overviewResponse.statusCode, 200);
+    const overview = overviewResponse.json() as {
+      summary: Array<{ userId: string; owes: number; owed: number }>;
+      matrix: Array<{ fromUserId: string; toUserId: string; amount: number }>;
+    };
+
+    const bobSummary = overview.summary.find((item) => item.userId === bob.user.id);
+    assert.ok(bobSummary);
+    assert.equal(bobSummary?.owes, 6);
+
+    const bobToAlice = overview.matrix.find(
+      (row) => row.fromUserId === bob.user.id && row.toUserId === alice.user.id
+    );
+    assert.ok(bobToAlice);
+    assert.equal(bobToAlice?.amount, 6);
   } finally {
     await app.close();
   }

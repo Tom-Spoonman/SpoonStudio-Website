@@ -73,3 +73,14 @@
 3. Added `GET /v1/clubs/:clubId/balances`.
 4. Added food order and balances panel in web UI.
 5. Enforced trust-confirmation: food orders are applied to ledger only after proposal approval.
+6. Added custom split support for food orders.
+7. Added `GET /v1/clubs/:clubId/balance-overview` with net/summary/matrix data.
+8. Added debt-settlement side effects on approved proposals.
+
+## Step 5 scope (in progress)
+1. Reduce frontend complexity by extracting client workflow component.
+2. Prepare future route split by isolating page wrapper and app logic.
+
+## Step 5 progress notes
+1. Extracted workflow into `apps/web/app/FilmclubClient.tsx`.
+2. Simplified `apps/web/app/page.tsx` to a thin wrapper component.
