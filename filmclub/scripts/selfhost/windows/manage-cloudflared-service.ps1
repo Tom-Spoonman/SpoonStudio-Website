@@ -21,8 +21,19 @@ function Get-CloudflaredService([string]$Name) {
   return $matches | Select-Object -First 1
 }
 
+function Test-IsAdministrator {
+  $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
   throw "cloudflared is required but was not found in PATH."
+}
+
+$requiresElevation = @("install", "uninstall", "start", "stop", "restart") -contains $Action
+if ($requiresElevation -and -not (Test-IsAdministrator)) {
+  throw "Action '$Action' requires an elevated PowerShell session (Run as Administrator)."
 }
 
 switch ($Action) {

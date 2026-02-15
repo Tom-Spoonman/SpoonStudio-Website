@@ -92,6 +92,14 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\man
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1 -Action status
 ```
 
+Important:
+1. `install`, `uninstall`, `start`, `stop`, and `restart` require an elevated PowerShell session (Run as Administrator).
+2. `status` can be run without elevation.
+3. If you do not want to run elevated, keep using foreground mode in a terminal:
+```powershell
+cloudflared tunnel run filmclub
+```
+
 Troubleshooting:
 1. If logs show `dial tcp [::1]:3000 ... actively refused`, set ingress services to `127.0.0.1` instead of `localhost`.
 2. Confirm local origins respond before testing public hostnames:
