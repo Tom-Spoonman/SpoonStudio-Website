@@ -23,9 +23,9 @@ Behavior:
 1. Single-page implementation to move quickly through workflow validation.
 2. No dedicated routing yet (`/login`, `/clubs/:id`, etc.).
 3. Debt-settlement now uses member selectors loaded from club memberships.
-4. Attendance still uses free-text names and is not linked to member ids yet.
+4. Attendance now uses member multi-select sourced from club memberships.
 
 ## Next UI improvements
 1. Split into routes/components (`/auth`, `/clubs`, `/clubs/:id/proposals`).
-2. Replace attendance free-text names with member multi-select.
+2. Add richer attendance UX (searchable picker/chips) instead of native multi-select.
 3. Replace local token storage with more secure session handling.

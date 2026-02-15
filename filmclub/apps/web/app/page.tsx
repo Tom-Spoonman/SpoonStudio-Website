@@ -101,7 +101,7 @@ export default function HomePage() {
   const [foodVendor, setFoodVendor] = useState("");
   const [foodTotalCost, setFoodTotalCost] = useState("0");
   const [foodCurrency, setFoodCurrency] = useState("EUR");
-  const [attendanceNames, setAttendanceNames] = useState("");
+  const [attendanceMemberIds, setAttendanceMemberIds] = useState<string[]>([]);
   const [debtFromUserId, setDebtFromUserId] = useState("");
   const [debtToUserId, setDebtToUserId] = useState("");
   const [debtAmount, setDebtAmount] = useState("0");
@@ -243,6 +243,14 @@ export default function HomePage() {
     loadClubMembers();
   }, [token, activeClubId]);
 
+  useEffect(() => {
+    if (clubMembers.length === 0) {
+      setAttendanceMemberIds([]);
+      return;
+    }
+    setAttendanceMemberIds((prev) => prev.filter((id) => clubMembers.some((member) => member.user.id === id)));
+  }, [clubMembers]);
+
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!displayName.trim()) {
@@ -361,12 +369,14 @@ export default function HomePage() {
         currency: foodCurrency.trim().toUpperCase()
       };
     } else if (proposalEntity === "attendance") {
-      const attendees = attendanceNames
-        .split(",")
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
+      const attendees = clubMembers
+        .filter((member) => attendanceMemberIds.includes(member.user.id))
+        .map((member) => ({
+          userId: member.user.id,
+          displayName: member.user.displayName
+        }));
       if (attendees.length === 0) {
-        setMessage("At least one attendee is required.");
+        setMessage("Select at least one attendee.");
         return;
       }
       payload = { attendees };
@@ -576,11 +586,21 @@ export default function HomePage() {
                   )}
                   {proposalEntity === "attendance" && (
                     <div className="stack">
-                      <input
-                        placeholder="Comma-separated attendee names"
-                        value={attendanceNames}
-                        onChange={(event) => setAttendanceNames(event.target.value)}
-                      />
+                      <select
+                        multiple
+                        value={attendanceMemberIds}
+                        onChange={(event) => {
+                          const values = Array.from(event.target.selectedOptions).map((option) => option.value);
+                          setAttendanceMemberIds(values);
+                        }}
+                      >
+                        {clubMembers.map((member) => (
+                          <option key={`attendance-${member.user.id}`} value={member.user.id}>
+                            {member.user.displayName}
+                          </option>
+                        ))}
+                      </select>
+                      <small>Hold Ctrl/Cmd to select multiple members.</small>
                     </div>
                   )}
                   {proposalEntity === "debt_settlement" && (
