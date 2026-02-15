@@ -59,3 +59,9 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
   -WebBaseUrl "https://filmclub.spoon.studio"
 ```
 
+## Self-host backup command
+For the Windows self-host path, create a DB backup with:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\backup-postgres.ps1
+```
+

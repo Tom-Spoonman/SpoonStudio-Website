@@ -104,3 +104,164 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\sto
 2. Keep Windows updates/reboots in mind when planning availability.
 3. Add regular Postgres backups before using this for important records.
 
+## Daily operations
+Run these from repo root `SpoonStudio-Website`.
+
+### Morning startup
+1. Start app stack:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\start-app-stack.ps1
+```
+2. Confirm local services:
+```powershell
+curl http://127.0.0.1:4000/health
+curl http://127.0.0.1:3000
+```
+3. Start tunnel in a dedicated terminal:
+```powershell
+cloudflared tunnel run filmclub
+```
+4. Confirm public health:
+```powershell
+curl https://api.spoon.studio/health
+```
+
+### Health checks during operation
+1. Process status:
+```powershell
+pm2 status
+```
+2. API logs:
+```powershell
+pm2 logs filmclub-api --lines 100
+```
+3. Web logs:
+```powershell
+pm2 logs filmclub-web --lines 100
+```
+4. End-to-end smoke:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
+  -ApiBaseUrl "https://api.spoon.studio" `
+  -WebBaseUrl "https://filmclub.spoon.studio"
+```
+
+### Graceful shutdown
+1. Stop tunnel terminal or service.
+2. Stop app stack:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\stop-app-stack.ps1
+```
+
+## Incident checklist
+### API down
+1. Check PM2:
+```powershell
+pm2 status
+pm2 logs filmclub-api --lines 200
+```
+2. Check local health:
+```powershell
+curl http://127.0.0.1:4000/health
+```
+3. Restart API:
+```powershell
+pm2 restart filmclub-api --update-env
+```
+4. If still failing, run full restart:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\stop-app-stack.ps1
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\start-app-stack.ps1
+```
+
+### Web down
+1. Check PM2 and logs:
+```powershell
+pm2 status
+pm2 logs filmclub-web --lines 200
+```
+2. Check local web:
+```powershell
+curl http://127.0.0.1:3000
+```
+3. Restart web:
+```powershell
+pm2 restart filmclub-web --update-env
+```
+
+### Tunnel down or public 502/SSL issues
+1. Check local services first (`127.0.0.1:3000`, `127.0.0.1:4000/health`).
+2. Validate DNS:
+```powershell
+nslookup filmclub.spoon.studio
+nslookup api.spoon.studio
+```
+3. Restart tunnel process:
+```powershell
+cloudflared tunnel run filmclub
+```
+4. Confirm ingress in `%USERPROFILE%\.cloudflared\config.yml` points to `127.0.0.1` (not `localhost`).
+
+## Backups and restore
+### Create a backup
+Use the backup script:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\backup-postgres.ps1
+```
+
+Optional parameters:
+1. `-BackupRoot "C:\path\to\backups"`
+2. `-RetentionDays 30`
+3. `-ContainerName filmclub-postgres`
+4. `-PgUser filmclub`
+5. `-PgDatabase filmclub`
+
+Backups are stored as PostgreSQL custom-format `.dump` files.
+
+### Suggested schedule
+1. Open Windows Task Scheduler.
+2. Create a daily task running:
+```powershell
+powershell -ExecutionPolicy Bypass -File <REPO_ROOT>\filmclub\scripts\selfhost\windows\backup-postgres.ps1
+```
+3. Run as the same user that has Docker access.
+
+### Restore from backup
+1. Stop API writes:
+```powershell
+pm2 stop filmclub-api
+```
+2. Copy backup into container:
+```powershell
+docker cp .\filmclub\backups\postgres\<backup-file>.dump filmclub-postgres:/tmp/restore.dump
+```
+3. Recreate target database:
+```powershell
+docker exec filmclub-postgres psql -U filmclub -d postgres -c "DROP DATABASE IF EXISTS filmclub;"
+docker exec filmclub-postgres psql -U filmclub -d postgres -c "CREATE DATABASE filmclub;"
+```
+4. Restore:
+```powershell
+docker exec filmclub-postgres pg_restore -U filmclub -d filmclub --clean --if-exists /tmp/restore.dump
+```
+5. Remove temporary restore file:
+```powershell
+docker exec filmclub-postgres rm -f /tmp/restore.dump
+```
+6. Start API again:
+```powershell
+pm2 restart filmclub-api --update-env
+```
+
+### Restore verification flow
+1. Check API health:
+```powershell
+curl http://127.0.0.1:4000/health
+```
+2. Run smoke test:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
+  -ApiBaseUrl "https://api.spoon.studio" `
+  -WebBaseUrl "https://filmclub.spoon.studio"
+```
+
