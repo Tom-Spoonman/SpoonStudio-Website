@@ -903,22 +903,38 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const goHistoryPrevPage = () => historyControls.prevPage();
 
   const goHistoryNextPage = () => historyControls.nextPage();
+  const healthClassName =
+    health === "ok" ? "pill pill-status-ok" : health === "offline" ? "pill pill-status-offline" : "pill";
 
   return (
-    <main>
-      <h1>filmclub</h1>
-      <p>API status: <span className="pill">{health}</span></p>
-      <p>
-        <a href="/auth">Auth</a> | <a href="/clubs">Clubs</a>
-        {activeClubId ? (
-          <>
-            {" "} | <a href={`/clubs/${activeClubId}`}>Club</a> |{" "}
-            <a href={`/clubs/${activeClubId}/proposals`}>Proposals</a>
-          </>
-        ) : null}
-      </p>
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="top-row">
+          <div>
+            <h1 className="app-title">filmclub</h1>
+            <p className="app-subtitle">Plan evenings, confirm facts, keep shared history clean.</p>
+          </div>
+          <p>
+            API status: <span className={healthClassName}>{health}</span>
+          </p>
+        </div>
+        <nav className="nav-row">
+          <a href="/auth" className="nav-link">Auth</a>
+          <a href="/clubs" className="nav-link">Clubs</a>
+          {activeClubId ? (
+            <>
+              <a href={`/clubs/${activeClubId}`} className="nav-link">Club</a>
+              <a href={`/clubs/${activeClubId}/proposals`} className="nav-link">Proposals</a>
+            </>
+          ) : null}
+        </nav>
+      </header>
 
-      {message && <div className="card"><p>{message}</p></div>}
+      {message && (
+        <div className="card message-card">
+          <p>{message}</p>
+        </div>
+      )}
 
       {!token && (
         <div className="card">
