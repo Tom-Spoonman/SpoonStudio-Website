@@ -14,6 +14,15 @@ Query params:
 5. `limit` (1-200)
 6. `offset` (0+)
 
+Validation:
+1. `from` must be before or equal to `to`.
+2. `from`/`to` span must not exceed 366 days.
+3. Invalid values return `400` with `code`:
+   - `invalid_from_date`
+   - `invalid_to_date`
+   - `invalid_date_bounds`
+   - `date_range_too_wide`
+
 Authorization:
 - `Authorization: Bearer <token>`
 

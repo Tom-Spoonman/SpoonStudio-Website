@@ -41,6 +41,7 @@ Starter development environment for the Filmclub companion web app.
 - UI flow (step 3): `docs/ui-flow.md`
 - Debt ledger foundations (step 4): `docs/debt-ledger.md`
 - History and audit trail: `docs/history-audit.md`
+- Deployment runbook: `docs/deployment-runbook.md`
 
 ## Suggested deployment split
 - `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`

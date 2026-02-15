@@ -18,6 +18,8 @@ Location:
 - `apps/web/app/components/ClubSettingsCard.tsx`
 - `apps/web/app/components/ProposalsPanel.tsx`
 - `apps/web/app/components/HistoryCard.tsx`
+- `apps/web/app/hooks/useHistoryControls.ts`
+- `apps/web/app/hooks/usePolicyGuardrails.ts`
 - `apps/web/app/auth/page.tsx`
 - `apps/web/app/clubs/page.tsx`
 - `apps/web/app/clubs/[clubId]/page.tsx`
@@ -36,6 +38,7 @@ Behavior:
 10. Club workspace includes history/audit timeline for proposals and votes.
 11. History supports filtering by status/entity/date and paginated browsing.
 12. History entries can deep-link into proposal details route.
+13. Club settings show guardrail warnings before policy updates that can impact pending proposals.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.

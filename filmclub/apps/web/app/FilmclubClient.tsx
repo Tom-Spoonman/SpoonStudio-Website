@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ClubSettingsCard from "./components/ClubSettingsCard";
 import HistoryCard from "./components/HistoryCard";
 import ProposalsPanel from "./components/ProposalsPanel";
+import { useHistoryControls } from "./hooks/useHistoryControls";
+import { usePolicyGuardrails } from "./hooks/usePolicyGuardrails";
 import type {
   ApprovalPolicy,
   Club,
@@ -14,7 +16,6 @@ import type {
   ClubHistoryPage,
   ClubListItem,
   ClubMember,
-  ClubMembership,
   MeResponse,
   PendingChangeStatus,
   ProposalDetails,
@@ -50,10 +51,6 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     limit: 10,
     offset: 0
   });
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | PendingChangeStatus>("all");
-  const [historyEntityFilter, setHistoryEntityFilter] = useState<"all" | RecordEntity>("all");
-  const [historyFrom, setHistoryFrom] = useState("");
-  const [historyTo, setHistoryTo] = useState("");
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
   const [selectedProposal, setSelectedProposal] = useState<ProposalDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PendingChangeStatus>("pending");
@@ -92,7 +89,14 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const activeClubEntry = clubs.find((item) => item.club.id === activeClubId) ?? null;
   const activeClub = activeClubEntry?.club ?? null;
   const activeMembership = activeClubEntry?.membership ?? null;
-  const eligibleVoterCount = Math.max(clubMembers.length - 1, 0);
+  const historyControls = useHistoryControls();
+  const { eligibleVoterCount, fixedImpossible, pendingWarning } = usePolicyGuardrails({
+    clubMembersCount: clubMembers.length,
+    activeClub,
+    settingsPolicyMode,
+    settingsFixedApprovals,
+    pendingProposalCount
+  });
   const showAuthOnly = view === "auth";
   const showClubList = view === "clubs";
   const showClubWorkspace = view === "club" || view === "proposals";
@@ -154,20 +158,20 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       return;
     }
     const query = new URLSearchParams({
-      limit: String(historyPage.limit),
-      offset: String(historyPage.offset)
+      limit: String(historyControls.limit),
+      offset: String(historyControls.offset)
     });
-    if (historyStatusFilter !== "all") {
-      query.set("status", historyStatusFilter);
+    if (historyControls.statusFilter !== "all") {
+      query.set("status", historyControls.statusFilter);
     }
-    if (historyEntityFilter !== "all") {
-      query.set("entity", historyEntityFilter);
+    if (historyControls.entityFilter !== "all") {
+      query.set("entity", historyControls.entityFilter);
     }
-    if (historyFrom) {
-      query.set("from", new Date(historyFrom).toISOString());
+    if (historyControls.from) {
+      query.set("from", new Date(historyControls.from).toISOString());
     }
-    if (historyTo) {
-      query.set("to", new Date(historyTo).toISOString());
+    if (historyControls.to) {
+      query.set("to", new Date(historyControls.to).toISOString());
     }
     const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/history?${query.toString()}`, {
       headers: authHeaders,
@@ -313,7 +317,16 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
   useEffect(() => {
     loadHistory();
-  }, [token, activeClubId, historyStatusFilter, historyEntityFilter, historyFrom, historyTo, historyPage.offset, historyPage.limit]);
+  }, [
+    token,
+    activeClubId,
+    historyControls.statusFilter,
+    historyControls.entityFilter,
+    historyControls.from,
+    historyControls.to,
+    historyControls.offset,
+    historyControls.limit
+  ]);
 
   useEffect(() => {
     loadPendingProposalCount();
@@ -326,8 +339,8 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   }, [routeClubId]);
 
   useEffect(() => {
-    setHistoryPage((prev) => ({ ...prev, offset: 0 }));
-  }, [historyStatusFilter, historyEntityFilter, historyFrom, historyTo]);
+    historyControls.resetPage();
+  }, [historyControls.statusFilter, historyControls.entityFilter, historyControls.from, historyControls.to]);
 
   useEffect(() => {
     const deepLinkedProposalId = searchParams.get("proposalId");
@@ -512,16 +525,11 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       setMessage("Fixed approvals must be an integer greater than or equal to 1.");
       return;
     }
-    if (settingsPolicyMode === "fixed" && settingsFixedApprovals > eligibleVoterCount) {
+    if (fixedImpossible) {
       setMessage("Fixed approvals cannot exceed current eligible voters.");
       return;
     }
-    const policyChanged =
-      !!activeClub &&
-      (activeClub.approvalPolicy.mode !== settingsPolicyMode ||
-        (settingsPolicyMode === "fixed" &&
-          (activeClub.approvalPolicy.requiredApprovals ?? 1) !== settingsFixedApprovals));
-    if (policyChanged && pendingProposalCount > 0) {
+    if (pendingWarning) {
       const proceed = window.confirm(
         `There are ${pendingProposalCount} pending proposals. Changing policy can change future resolution outcomes. Continue?`
       );
@@ -732,13 +740,9 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     return found ? found.user.displayName : userId;
   };
 
-  const goHistoryPrevPage = () => {
-    setHistoryPage((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }));
-  };
+  const goHistoryPrevPage = () => historyControls.prevPage();
 
-  const goHistoryNextPage = () => {
-    setHistoryPage((prev) => ({ ...prev, offset: prev.offset + prev.limit }));
-  };
+  const goHistoryNextPage = () => historyControls.nextPage();
 
   return (
     <main>
@@ -853,6 +857,8 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
                 settingsFixedApprovals={settingsFixedApprovals}
                 pendingProposalCount={pendingProposalCount}
                 eligibleVoterCount={eligibleVoterCount}
+                fixedImpossible={fixedImpossible}
+                pendingWarning={pendingWarning}
                 onPolicyModeChange={setSettingsPolicyMode}
                 onFixedApprovalsChange={setSettingsFixedApprovals}
                 onSubmit={updateClubPolicy}
@@ -1090,14 +1096,14 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
               <HistoryCard
                 activeClubId={activeClubId}
                 historyPage={historyPage}
-                statusFilter={historyStatusFilter}
-                entityFilter={historyEntityFilter}
-                from={historyFrom}
-                to={historyTo}
-                onStatusFilterChange={setHistoryStatusFilter}
-                onEntityFilterChange={setHistoryEntityFilter}
-                onFromChange={setHistoryFrom}
-                onToChange={setHistoryTo}
+                statusFilter={historyControls.statusFilter}
+                entityFilter={historyControls.entityFilter}
+                from={historyControls.from}
+                to={historyControls.to}
+                onStatusFilterChange={historyControls.setStatusFilter}
+                onEntityFilterChange={historyControls.setEntityFilter}
+                onFromChange={historyControls.setFrom}
+                onToChange={historyControls.setTo}
                 onPrevPage={goHistoryPrevPage}
                 onNextPage={goHistoryNextPage}
               />

@@ -149,4 +149,24 @@ export const runMigrations = async () => {
       created_at TIMESTAMPTZ NOT NULL
     );
   `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_proposed_changes_club_created_at
+    ON proposed_changes (club_id, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_proposed_changes_club_status_created_at
+    ON proposed_changes (club_id, status, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_proposed_changes_club_entity_created_at
+    ON proposed_changes (club_id, entity, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_change_votes_proposed_change_created_at
+    ON change_votes (proposed_change_id, created_at ASC);
+  `);
 };

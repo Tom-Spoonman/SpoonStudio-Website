@@ -79,9 +79,11 @@ export default function HistoryCard(props: HistoryCardProps) {
 
       {historyPage.items.length === 0 && <p>No history yet.</p>}
       {historyPage.items.map((item) => (
-        <div key={`history-${item.proposalId}`} className="stack">
+        <div key={`history-${item.proposalId}`} className="stack history-item">
           <p>
-            <strong>{item.entity}</strong> by {item.proposerDisplayName} on {new Date(item.createdAt).toLocaleString()}
+            <span className="chip">{item.entity}</span>{" "}
+            <span className={`chip chip-status-${item.status}`}>{item.status}</span>{" "}
+            by {item.proposerDisplayName} on {new Date(item.createdAt).toLocaleString()}
           </p>
           <p>
             Status: {item.status}

@@ -90,3 +90,6 @@
 6. Added policy guardrails in settings (fixed-threshold eligibility check + pending-proposal warning).
 7. Added history filters, pagination, and proposal deep-link navigation.
 8. Split major UI sections into reusable components (`ClubSettingsCard`, `ProposalsPanel`, `HistoryCard`).
+9. Added reusable UI hooks for history controls and policy guardrail state.
+10. Hardened API with history date-range validation and policy guardrail error codes.
+11. Added DB indexes for proposal/vote history query performance.

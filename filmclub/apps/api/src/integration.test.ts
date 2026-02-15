@@ -171,6 +171,48 @@ test("club owner can update approval policy", async () => {
   }
 });
 
+test("policy update affects thresholds for subsequent proposals", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Policy Change Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const firstProposal = await createProposal(app, alice.token, club.club.id);
+    const approveFirst = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${firstProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    assert.equal(approveFirst.statusCode, 200);
+    const firstDetails = await getProposal(app, alice.token, firstProposal.id);
+    assert.equal(firstDetails.proposal.status, "pending");
+
+    const updated = await updateClubApprovalPolicy(app, alice.token, club.club.id, {
+      mode: "fixed",
+      requiredApprovals: 1
+    });
+    assert.equal(updated.club.approvalPolicy.mode, "fixed");
+    assert.equal(updated.club.approvalPolicy.requiredApprovals, 1);
+
+    const secondProposal = await createProposal(app, alice.token, club.club.id);
+    const approveSecond = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${secondProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    assert.equal(approveSecond.statusCode, 200);
+    const secondDetails = await getProposal(app, alice.token, secondProposal.id);
+    assert.equal(secondDetails.proposal.status, "approved");
+  } finally {
+    await app.close();
+  }
+});
+
 test("non-owner member cannot update approval policy", async () => {
   const app = createApp();
   await app.ready();
@@ -191,6 +233,35 @@ test("non-owner member cannot update approval policy", async () => {
       }
     });
     assert.equal(response.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test("owner cannot set fixed approvals above eligible voter count", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const createdClub = await createClub(app, alice.token, "Guardrail Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    await joinClub(app, bob.token, createdClub.club.joinCode);
+
+    const response = await app.inject({
+      method: "PUT",
+      url: `/v1/clubs/${createdClub.club.id}/approval-policy`,
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        approvalPolicy: {
+          mode: "fixed",
+          requiredApprovals: 2
+        }
+      }
+    });
+    assert.equal(response.statusCode, 400);
+    const body = response.json() as { code?: string; details?: { eligibleVoterCount?: number } };
+    assert.equal(body.code, "policy_fixed_exceeds_eligible_voters");
+    assert.equal(body.details?.eligibleVoterCount, 1);
   } finally {
     await app.close();
   }
@@ -568,6 +639,24 @@ test("club history returns lifecycle details including votes and commit metadata
     assert.equal(filtered.offset, 0);
     assert.ok(filtered.total >= 1);
     assert.ok(filtered.items.every((item) => item.status === "approved" && item.entity === "movie_watch"));
+
+    const invalidBoundsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/history?from=2026-02-16T00:00:00.000Z&to=2026-02-15T00:00:00.000Z`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(invalidBoundsResponse.statusCode, 400);
+    const invalidBounds = invalidBoundsResponse.json() as { code?: string };
+    assert.equal(invalidBounds.code, "invalid_date_bounds");
+
+    const tooWideResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/history?from=2025-01-01T00:00:00.000Z&to=2026-12-31T23:59:59.000Z`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(tooWideResponse.statusCode, 400);
+    const tooWide = tooWideResponse.json() as { code?: string };
+    assert.equal(tooWide.code, "date_range_too_wide");
   } finally {
     await app.close();
   }

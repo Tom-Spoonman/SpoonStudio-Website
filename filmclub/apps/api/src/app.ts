@@ -3,6 +3,7 @@ import type { ApprovalPolicy, PendingChangeStatus, ProposedChange, User } from "
 import {
   addMembership,
   createClubForUser,
+  countClubMembers,
   createSession,
   createUser,
   deleteSessionByToken,
@@ -317,13 +318,30 @@ export const createApp = () => {
         reply.code(403);
         return { error: "Forbidden" };
       }
-      if (request.query.from && Number.isNaN(Date.parse(request.query.from))) {
+      const fromTs = request.query.from ? Date.parse(request.query.from) : null;
+      const toTs = request.query.to ? Date.parse(request.query.to) : null;
+      if (request.query.from && Number.isNaN(fromTs)) {
         reply.code(400);
-        return { error: "Invalid from date" };
+        return { error: "Invalid from date", code: "invalid_from_date" };
       }
-      if (request.query.to && Number.isNaN(Date.parse(request.query.to))) {
+      if (request.query.to && Number.isNaN(toTs)) {
         reply.code(400);
-        return { error: "Invalid to date" };
+        return { error: "Invalid to date", code: "invalid_to_date" };
+      }
+      if (fromTs !== null && toTs !== null && fromTs > toTs) {
+        reply.code(400);
+        return { error: "from date must be before to date", code: "invalid_date_bounds" };
+      }
+      if (fromTs !== null && toTs !== null) {
+        const maxRangeDays = 366;
+        const rangeDays = (toTs - fromTs) / (1000 * 60 * 60 * 24);
+        if (rangeDays > maxRangeDays) {
+          reply.code(400);
+          return {
+            error: `Date range cannot exceed ${maxRangeDays} days`,
+            code: "date_range_too_wide"
+          };
+        }
       }
       const limit = request.query.limit ? Number(request.query.limit) : undefined;
       const offset = request.query.offset ? Number(request.query.offset) : undefined;
@@ -376,7 +394,20 @@ export const createApp = () => {
       }
       if (!isValidApprovalPolicy(request.body.approvalPolicy)) {
         reply.code(400);
-        return { error: "Invalid approvalPolicy" };
+        return { error: "Invalid approvalPolicy", code: "invalid_approval_policy" };
+      }
+      if (request.body.approvalPolicy.mode === "fixed") {
+        const memberCount = await countClubMembers(request.params.clubId);
+        const eligibleVoterCount = Math.max(memberCount - 1, 0);
+        const required = request.body.approvalPolicy.requiredApprovals ?? 1;
+        if (required > eligibleVoterCount) {
+          reply.code(400);
+          return {
+            error: "Fixed approvals cannot exceed current eligible voters",
+            code: "policy_fixed_exceeds_eligible_voters",
+            details: { eligibleVoterCount, requiredApprovals: required }
+          };
+        }
       }
       const club = await updateClubApprovalPolicy(request.params.clubId, request.body.approvalPolicy);
       if (!club) {

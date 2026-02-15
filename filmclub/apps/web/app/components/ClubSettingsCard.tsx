@@ -11,6 +11,8 @@ interface ClubSettingsCardProps {
   settingsFixedApprovals: number;
   pendingProposalCount: number;
   eligibleVoterCount: number;
+  fixedImpossible: boolean;
+  pendingWarning: boolean;
   onPolicyModeChange: (mode: ApprovalPolicy["mode"]) => void;
   onFixedApprovalsChange: (value: number) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -25,16 +27,12 @@ export default function ClubSettingsCard(props: ClubSettingsCardProps) {
     settingsFixedApprovals,
     pendingProposalCount,
     eligibleVoterCount,
+    fixedImpossible,
+    pendingWarning,
     onPolicyModeChange,
     onFixedApprovalsChange,
     onSubmit
   } = props;
-  const fixedImpossible = settingsPolicyMode === "fixed" && settingsFixedApprovals > eligibleVoterCount;
-  const policyChanged =
-    !!activeClub &&
-    (activeClub.approvalPolicy.mode !== settingsPolicyMode ||
-      (settingsPolicyMode === "fixed" &&
-        (activeClub.approvalPolicy.requiredApprovals ?? 1) !== settingsFixedApprovals));
 
   return (
     <div className="card">
@@ -48,7 +46,7 @@ export default function ClubSettingsCard(props: ClubSettingsCardProps) {
       <p>Current eligible voters per proposal: {eligibleVoterCount}</p>
       {activeMembership?.role !== "owner" && <p>Only owners can edit policy settings.</p>}
       {fixedImpossible && <p>Fixed approvals cannot exceed eligible voters for current club size.</p>}
-      {policyChanged && pendingProposalCount > 0 && (
+      {pendingWarning && (
         <p>
           Warning: {pendingProposalCount} pending proposal(s) exist. Policy changes can alter future resolution outcomes.
         </p>

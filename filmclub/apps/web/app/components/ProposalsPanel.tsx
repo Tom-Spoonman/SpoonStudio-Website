@@ -41,7 +41,9 @@ export default function ProposalsPanel(props: ProposalsPanelProps) {
           {proposals.length === 0 && <p>No proposals.</p>}
           {proposals.map((proposal) => (
             <button key={proposal.id} onClick={() => onSelectProposal(proposal.id)}>
-              {proposal.entity} - {proposal.status}
+              <span className="chip">{proposal.entity}</span>{" "}
+              <span className={`chip chip-status-${proposal.status}`}>{proposal.status}</span>{" "}
+              <span>{new Date(proposal.createdAt).toLocaleString()}</span>
             </button>
           ))}
         </div>
@@ -53,7 +55,10 @@ export default function ProposalsPanel(props: ProposalsPanelProps) {
         {selectedProposal && (
           <div className="stack">
             <p>Status: <strong>{selectedProposal.proposal.status}</strong></p>
-            <p>Entity: {selectedProposal.proposal.entity}</p>
+            <p>
+              Entity: <span className="chip">{selectedProposal.proposal.entity}</span>
+            </p>
+            <p>Created: {new Date(selectedProposal.proposal.createdAt).toLocaleString()}</p>
             <pre>{JSON.stringify(selectedProposal.proposal.payload, null, 2)}</pre>
             <div className="row">
               <button

@@ -149,6 +149,10 @@ Body examples:
 Access rule:
 - Caller must be an `owner` membership in the target club.
 
+Guardrail:
+- For `fixed` mode, `requiredApprovals` must not exceed current eligible voters (`club member count - 1`).
+- Violation returns `400` with `code: "policy_fixed_exceeds_eligible_voters"`.
+
 ## Next step toward production
 1. Replace display-name login with magic-link or OAuth.
 2. Hash/rotate join codes and add optional expiry/revocation.
