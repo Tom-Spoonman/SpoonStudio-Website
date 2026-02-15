@@ -53,3 +53,4 @@
 2. Added styling/layout support in `apps/web/app/globals.css`.
 3. Added `docs/ui-flow.md`.
 4. Replaced raw JSON proposal editor with typed per-entity form inputs.
+5. Replaced debt-settlement user-id inputs with club-member selectors.

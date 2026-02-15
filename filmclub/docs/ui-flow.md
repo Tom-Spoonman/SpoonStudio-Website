@@ -22,9 +22,10 @@ Behavior:
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
 2. No dedicated routing yet (`/login`, `/clubs/:id`, etc.).
-3. Debt-settlement still uses user-id text fields; member pickers are not implemented yet.
+3. Debt-settlement now uses member selectors loaded from club memberships.
+4. Attendance still uses free-text names and is not linked to member ids yet.
 
 ## Next UI improvements
 1. Split into routes/components (`/auth`, `/clubs`, `/clubs/:id/proposals`).
-2. Replace debt-settlement user-id text fields with member selectors.
+2. Replace attendance free-text names with member multi-select.
 3. Replace local token storage with more secure session handling.

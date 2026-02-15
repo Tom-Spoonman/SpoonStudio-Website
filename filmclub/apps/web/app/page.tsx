@@ -70,11 +70,17 @@ interface ProposalDetails {
   votes: ChangeVote[];
 }
 
+interface ClubMember {
+  user: User;
+  membership: ClubMembership;
+}
+
 export default function HomePage() {
   const [health, setHealth] = useState<string>("checking");
   const [token, setToken] = useState<string>("");
   const [me, setMe] = useState<User | null>(null);
   const [clubs, setClubs] = useState<ClubListItem[]>([]);
+  const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
   const [activeClubId, setActiveClubId] = useState<string>("");
   const [proposals, setProposals] = useState<ProposedChange[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<ProposalDetails | null>(null);
@@ -174,6 +180,33 @@ export default function HomePage() {
     }
   };
 
+  const loadClubMembers = async () => {
+    if (!token || !activeClubId) {
+      setClubMembers([]);
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/members`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as ClubMember[];
+    setClubMembers(data);
+    if (data.length > 0) {
+      const hasFrom = data.some((item) => item.user.id === debtFromUserId);
+      const hasTo = data.some((item) => item.user.id === debtToUserId);
+      if (!hasFrom) {
+        setDebtFromUserId(data[0].user.id);
+      }
+      if (!hasTo) {
+        const fallback = data.find((item) => item.user.id !== data[0].user.id);
+        setDebtToUserId((fallback ?? data[0]).user.id);
+      }
+    }
+  };
+
   const loadProposalDetails = async (proposalId: string) => {
     const response = await fetch(`${apiBase}/v1/proposed-changes/${proposalId}`, {
       headers: authHeaders,
@@ -205,6 +238,10 @@ export default function HomePage() {
   useEffect(() => {
     loadProposals();
   }, [token, activeClubId, statusFilter]);
+
+  useEffect(() => {
+    loadClubMembers();
+  }, [token, activeClubId]);
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -335,7 +372,11 @@ export default function HomePage() {
       payload = { attendees };
     } else if (proposalEntity === "debt_settlement") {
       if (!debtFromUserId.trim() || !debtToUserId.trim()) {
-        setMessage("From/To user ids are required.");
+        setMessage("From/To members are required.");
+        return;
+      }
+      if (debtFromUserId === debtToUserId) {
+        setMessage("From and To members must be different.");
         return;
       }
       const amount = Number(debtAmount);
@@ -387,6 +428,11 @@ export default function HomePage() {
     setMessage(`Vote submitted: ${decision}`);
     await loadProposals();
     await loadProposalDetails(proposalId);
+  };
+
+  const memberNameById = (userId: string) => {
+    const found = clubMembers.find((item) => item.user.id === userId);
+    return found ? found.user.displayName : userId;
   };
 
   return (
@@ -539,16 +585,26 @@ export default function HomePage() {
                   )}
                   {proposalEntity === "debt_settlement" && (
                     <div className="stack">
-                      <input
-                        placeholder="From user id"
+                      <select
                         value={debtFromUserId}
                         onChange={(event) => setDebtFromUserId(event.target.value)}
-                      />
-                      <input
-                        placeholder="To user id"
+                      >
+                        {clubMembers.map((member) => (
+                          <option key={`from-${member.user.id}`} value={member.user.id}>
+                            {member.user.displayName}
+                          </option>
+                        ))}
+                      </select>
+                      <select
                         value={debtToUserId}
                         onChange={(event) => setDebtToUserId(event.target.value)}
-                      />
+                      >
+                        {clubMembers.map((member) => (
+                          <option key={`to-${member.user.id}`} value={member.user.id}>
+                            {member.user.displayName}
+                          </option>
+                        ))}
+                      </select>
                       <input
                         type="number"
                         step="0.01"
@@ -614,7 +670,7 @@ export default function HomePage() {
                       <h3>Votes</h3>
                       {selectedProposal.votes.length === 0 && <p>No votes yet.</p>}
                       {selectedProposal.votes.map((vote) => (
-                        <p key={vote.id}>{vote.voterUserId}: {vote.decision}</p>
+                        <p key={vote.id}>{memberNameById(vote.voterUserId)}: {vote.decision}</p>
                       ))}
                     </div>
                   )}
