@@ -65,3 +65,8 @@ For the Windows self-host path, create a DB backup with:
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\backup-postgres.ps1
 ```
 
+For Windows self-host operations, also use:
+1. Preflight: `.\filmclub\scripts\selfhost\windows\preflight.ps1`
+2. Stack check: `.\filmclub\scripts\selfhost\windows\check-stack.ps1`
+3. Restore: `.\filmclub\scripts\selfhost\windows\restore-postgres.ps1`
+

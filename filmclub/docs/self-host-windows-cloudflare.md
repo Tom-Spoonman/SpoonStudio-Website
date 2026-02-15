@@ -42,15 +42,25 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\sta
 ```
 
 What this does:
-1. Starts local Postgres container
-2. Installs deps and builds (unless `-SkipBuild`)
-3. Starts API + web in PM2 via `ecosystem.config.cjs`
+1. Runs preflight checks (`preflight.ps1`)
+2. Starts local Postgres container
+3. Installs deps and builds (unless `-SkipBuild`)
+4. Starts API + web in PM2 via `ecosystem.config.cjs`
+
+Optional startup flags:
+1. `-SkipBuild`
+2. `-SkipPreflight`
 
 Check process status:
 ```powershell
 pm2 status
 pm2 logs filmclub-api
 pm2 logs filmclub-web
+```
+
+Run preflight manually:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\preflight.ps1
 ```
 
 ## 3) Configure Cloudflare Tunnel
@@ -127,19 +137,23 @@ curl https://api.spoon.studio/health
 ```
 
 ### Health checks during operation
-1. Process status:
+1. One-command stack check:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\check-stack.ps1
+```
+2. Process status:
 ```powershell
 pm2 status
 ```
-2. API logs:
+3. API logs:
 ```powershell
 pm2 logs filmclub-api --lines 100
 ```
-3. Web logs:
+4. Web logs:
 ```powershell
 pm2 logs filmclub-web --lines 100
 ```
-4. End-to-end smoke:
+5. End-to-end smoke:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
   -ApiBaseUrl "https://api.spoon.studio" `
@@ -227,31 +241,18 @@ powershell -ExecutionPolicy Bypass -File <REPO_ROOT>\filmclub\scripts\selfhost\w
 3. Run as the same user that has Docker access.
 
 ### Restore from backup
-1. Stop API writes:
+Use the restore script:
 ```powershell
-pm2 stop filmclub-api
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\restore-postgres.ps1 `
+  -BackupFile ".\filmclub\backups\postgres\<backup-file>.dump" `
+  -Force
 ```
-2. Copy backup into container:
-```powershell
-docker cp .\filmclub\backups\postgres\<backup-file>.dump filmclub-postgres:/tmp/restore.dump
-```
-3. Recreate target database:
-```powershell
-docker exec filmclub-postgres psql -U filmclub -d postgres -c "DROP DATABASE IF EXISTS filmclub;"
-docker exec filmclub-postgres psql -U filmclub -d postgres -c "CREATE DATABASE filmclub;"
-```
-4. Restore:
-```powershell
-docker exec filmclub-postgres pg_restore -U filmclub -d filmclub --clean --if-exists /tmp/restore.dump
-```
-5. Remove temporary restore file:
-```powershell
-docker exec filmclub-postgres rm -f /tmp/restore.dump
-```
-6. Start API again:
-```powershell
-pm2 restart filmclub-api --update-env
-```
+
+Optional restore parameters:
+1. `-SkipApiStop`
+2. `-ContainerName filmclub-postgres`
+3. `-PgUser filmclub`
+4. `-PgDatabase filmclub`
 
 ### Restore verification flow
 1. Check API health:

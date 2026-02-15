@@ -1,5 +1,6 @@
 param(
-  [switch]$SkipBuild
+  [switch]$SkipBuild,
+  [switch]$SkipPreflight
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +33,11 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 Push-Location $repoRoot
 
 try {
+  if (-not $SkipPreflight) {
+    Write-Host "Running preflight checks..."
+    & (Join-Path $PSScriptRoot "preflight.ps1")
+  }
+
   Write-Host "Starting Postgres container..."
   docker compose up -d postgres | Out-Host
   Assert-LastExitCode "docker compose up -d postgres"
