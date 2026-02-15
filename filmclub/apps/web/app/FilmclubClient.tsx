@@ -1,126 +1,30 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import ClubSettingsCard from "./components/ClubSettingsCard";
+import HistoryCard from "./components/HistoryCard";
+import ProposalsPanel from "./components/ProposalsPanel";
+import type {
+  ApprovalPolicy,
+  Club,
+  ClubBalance,
+  ClubBalanceSummary,
+  ClubDebtMatrixRow,
+  ClubHistoryPage,
+  ClubListItem,
+  ClubMember,
+  ClubMembership,
+  MeResponse,
+  PendingChangeStatus,
+  ProposalDetails,
+  ProposedChange,
+  RecordEntity,
+  User
+} from "./filmclub-types";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const tokenStorageKey = "filmclub_token";
-
-type ApprovalMode = "unanimous" | "majority" | "fixed";
-type PendingChangeStatus = "pending" | "approved" | "rejected";
-type RecordEntity = "movie_watch" | "food_order" | "attendance" | "debt_settlement";
-
-interface ApprovalPolicy {
-  mode: ApprovalMode;
-  requiredApprovals?: number;
-}
-
-interface User {
-  id: string;
-  displayName: string;
-  createdAt: string;
-}
-
-interface Club {
-  id: string;
-  name: string;
-  joinCode: string;
-  approvalPolicy: ApprovalPolicy;
-  createdByUserId: string;
-  createdAt: string;
-}
-
-interface ClubMembership {
-  id: string;
-  clubId: string;
-  userId: string;
-  role: "owner" | "member";
-  joinedAt: string;
-}
-
-interface ProposedChange {
-  id: string;
-  clubId: string;
-  entity: RecordEntity;
-  payload: unknown;
-  proposerUserId: string;
-  status: PendingChangeStatus;
-  createdAt: string;
-  resolvedAt?: string;
-}
-
-interface ChangeVote {
-  id: string;
-  proposedChangeId: string;
-  voterUserId: string;
-  decision: "approve" | "reject";
-  createdAt: string;
-}
-
-interface MeResponse {
-  user: User;
-}
-
-interface ClubListItem {
-  club: Club;
-  membership: ClubMembership;
-}
-
-interface ProposalDetails {
-  proposal: ProposedChange;
-  votes: ChangeVote[];
-}
-
-interface ClubMember {
-  user: User;
-  membership: ClubMembership;
-}
-
-interface ClubBalance {
-  userId: string;
-  displayName: string;
-  currency: string;
-  netAmount: number;
-}
-
-interface ClubBalanceSummary {
-  userId: string;
-  displayName: string;
-  currency: string;
-  owes: number;
-  owed: number;
-}
-
-interface ClubDebtMatrixRow {
-  fromUserId: string;
-  fromDisplayName: string;
-  toUserId: string;
-  toDisplayName: string;
-  currency: string;
-  amount: number;
-}
-
-interface ClubHistoryItem {
-  proposalId: string;
-  clubId: string;
-  entity: RecordEntity;
-  payload: unknown;
-  proposerUserId: string;
-  proposerDisplayName: string;
-  status: PendingChangeStatus;
-  createdAt: string;
-  resolvedAt?: string;
-  committedAt?: string;
-  committedByUserId?: string;
-  committedByDisplayName?: string;
-  votes: Array<{
-    id: string;
-    voterUserId: string;
-    voterDisplayName: string;
-    decision: "approve" | "reject";
-    createdAt: string;
-  }>;
-}
 
 interface FilmclubClientProps {
   view?: "auth" | "clubs" | "club" | "proposals";
@@ -129,6 +33,7 @@ interface FilmclubClientProps {
 
 export default function FilmclubClient({ view = "club", routeClubId }: FilmclubClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [health, setHealth] = useState<string>("checking");
   const [token, setToken] = useState<string>("");
   const [me, setMe] = useState<User | null>(null);
@@ -139,7 +44,17 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const [balances, setBalances] = useState<ClubBalance[]>([]);
   const [balanceSummary, setBalanceSummary] = useState<ClubBalanceSummary[]>([]);
   const [debtMatrix, setDebtMatrix] = useState<ClubDebtMatrixRow[]>([]);
-  const [history, setHistory] = useState<ClubHistoryItem[]>([]);
+  const [historyPage, setHistoryPage] = useState<ClubHistoryPage>({
+    items: [],
+    total: 0,
+    limit: 10,
+    offset: 0
+  });
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | PendingChangeStatus>("all");
+  const [historyEntityFilter, setHistoryEntityFilter] = useState<"all" | RecordEntity>("all");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [pendingProposalCount, setPendingProposalCount] = useState(0);
   const [selectedProposal, setSelectedProposal] = useState<ProposalDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PendingChangeStatus>("pending");
   const [message, setMessage] = useState<string>("");
@@ -177,6 +92,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const activeClubEntry = clubs.find((item) => item.club.id === activeClubId) ?? null;
   const activeClub = activeClubEntry?.club ?? null;
   const activeMembership = activeClubEntry?.membership ?? null;
+  const eligibleVoterCount = Math.max(clubMembers.length - 1, 0);
   const showAuthOnly = view === "auth";
   const showClubList = view === "clubs";
   const showClubWorkspace = view === "club" || view === "proposals";
@@ -234,18 +150,34 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
   const loadHistory = async () => {
     if (!token || !activeClubId) {
-      setHistory([]);
+      setHistoryPage((prev) => ({ ...prev, items: [], total: 0, offset: 0 }));
       return;
     }
-    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/history?limit=100`, {
+    const query = new URLSearchParams({
+      limit: String(historyPage.limit),
+      offset: String(historyPage.offset)
+    });
+    if (historyStatusFilter !== "all") {
+      query.set("status", historyStatusFilter);
+    }
+    if (historyEntityFilter !== "all") {
+      query.set("entity", historyEntityFilter);
+    }
+    if (historyFrom) {
+      query.set("from", new Date(historyFrom).toISOString());
+    }
+    if (historyTo) {
+      query.set("to", new Date(historyTo).toISOString());
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/history?${query.toString()}`, {
       headers: authHeaders,
       cache: "no-store"
     });
     if (!response.ok) {
       return;
     }
-    const data = (await response.json()) as ClubHistoryItem[];
-    setHistory(data);
+    const data = (await response.json()) as ClubHistoryPage;
+    setHistoryPage(data);
   };
 
   const loadProposals = async () => {
@@ -272,6 +204,22 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     if (selectedProposal && !data.some((item) => item.id === selectedProposal.proposal.id)) {
       setSelectedProposal(null);
     }
+  };
+
+  const loadPendingProposalCount = async () => {
+    if (!token || !activeClubId) {
+      setPendingProposalCount(0);
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/proposed-changes?clubId=${activeClubId}&status=pending`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as ProposedChange[];
+    setPendingProposalCount(data.length);
   };
 
   const loadClubMembers = async () => {
@@ -365,6 +313,10 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
   useEffect(() => {
     loadHistory();
+  }, [token, activeClubId, historyStatusFilter, historyEntityFilter, historyFrom, historyTo, historyPage.offset, historyPage.limit]);
+
+  useEffect(() => {
+    loadPendingProposalCount();
   }, [token, activeClubId]);
 
   useEffect(() => {
@@ -372,6 +324,19 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       setActiveClubId(routeClubId);
     }
   }, [routeClubId]);
+
+  useEffect(() => {
+    setHistoryPage((prev) => ({ ...prev, offset: 0 }));
+  }, [historyStatusFilter, historyEntityFilter, historyFrom, historyTo]);
+
+  useEffect(() => {
+    const deepLinkedProposalId = searchParams.get("proposalId");
+    if (!deepLinkedProposalId || !token || !activeClubId) {
+      return;
+    }
+    setStatusFilter("all");
+    loadProposalDetails(deepLinkedProposalId);
+  }, [searchParams.toString(), token, activeClubId]);
 
   useEffect(() => {
     if (!activeClub) {
@@ -547,6 +512,23 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       setMessage("Fixed approvals must be an integer greater than or equal to 1.");
       return;
     }
+    if (settingsPolicyMode === "fixed" && settingsFixedApprovals > eligibleVoterCount) {
+      setMessage("Fixed approvals cannot exceed current eligible voters.");
+      return;
+    }
+    const policyChanged =
+      !!activeClub &&
+      (activeClub.approvalPolicy.mode !== settingsPolicyMode ||
+        (settingsPolicyMode === "fixed" &&
+          (activeClub.approvalPolicy.requiredApprovals ?? 1) !== settingsFixedApprovals));
+    if (policyChanged && pendingProposalCount > 0) {
+      const proceed = window.confirm(
+        `There are ${pendingProposalCount} pending proposals. Changing policy can change future resolution outcomes. Continue?`
+      );
+      if (!proceed) {
+        return;
+      }
+    }
     const approvalPolicy: ApprovalPolicy =
       settingsPolicyMode === "fixed"
         ? { mode: "fixed", requiredApprovals: settingsFixedApprovals }
@@ -566,6 +548,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     }
     setMessage("Approval policy updated.");
     await loadClubs();
+    await loadPendingProposalCount();
   };
 
   const submitProposal = async (event: FormEvent<HTMLFormElement>) => {
@@ -749,6 +732,14 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     return found ? found.user.displayName : userId;
   };
 
+  const goHistoryPrevPage = () => {
+    setHistoryPage((prev) => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }));
+  };
+
+  const goHistoryNextPage = () => {
+    setHistoryPage((prev) => ({ ...prev, offset: prev.offset + prev.limit }));
+  };
+
   return (
     <main>
       <h1>filmclub</h1>
@@ -854,39 +845,18 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
           {activeClubId && showClubWorkspace && (
             <>
-              <div className="card">
-                <h2>Club Settings</h2>
-                <p>
-                  Current policy: <strong>{activeClub?.approvalPolicy.mode}</strong>
-                  {activeClub && activeClub.approvalPolicy.mode === "fixed" && activeClub.approvalPolicy.requiredApprovals
-                    ? ` (${activeClub.approvalPolicy.requiredApprovals} approvals)`
-                    : ""}
-                </p>
-                {activeMembership?.role !== "owner" && <p>Only owners can edit policy settings.</p>}
-                <form onSubmit={updateClubPolicy} className="stack">
-                  <select
-                    value={settingsPolicyMode}
-                    onChange={(event) => setSettingsPolicyMode(event.target.value as ApprovalPolicy["mode"])}
-                    disabled={busy || activeMembership?.role !== "owner"}
-                  >
-                    <option value="majority">Majority</option>
-                    <option value="unanimous">Unanimous</option>
-                    <option value="fixed">Fixed approvals</option>
-                  </select>
-                  {settingsPolicyMode === "fixed" && (
-                    <input
-                      type="number"
-                      min={1}
-                      value={settingsFixedApprovals}
-                      onChange={(event) => setSettingsFixedApprovals(Number(event.target.value))}
-                      disabled={busy || activeMembership?.role !== "owner"}
-                    />
-                  )}
-                  <button type="submit" disabled={busy || activeMembership?.role !== "owner"}>
-                    Save Policy
-                  </button>
-                </form>
-              </div>
+              <ClubSettingsCard
+                activeClub={activeClub}
+                activeMembership={activeMembership}
+                busy={busy}
+                settingsPolicyMode={settingsPolicyMode}
+                settingsFixedApprovals={settingsFixedApprovals}
+                pendingProposalCount={pendingProposalCount}
+                eligibleVoterCount={eligibleVoterCount}
+                onPolicyModeChange={setSettingsPolicyMode}
+                onFixedApprovalsChange={setSettingsFixedApprovals}
+                onSubmit={updateClubPolicy}
+              />
 
               {showOverviewPanels && (
                 <div className="card">
@@ -1105,86 +1075,32 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
               )}
 
               {showProposalsPanel && (
-                <div className="grid2">
-                <div className="card">
-                  <h2>Proposals</h2>
-                  <div className="row">
-                    <label>Status</label>
-                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | PendingChangeStatus)}>
-                      <option value="all">all</option>
-                      <option value="pending">pending</option>
-                      <option value="approved">approved</option>
-                      <option value="rejected">rejected</option>
-                    </select>
-                  </div>
-                  <div className="stack">
-                    {proposals.length === 0 && <p>No proposals.</p>}
-                    {proposals.map((proposal) => (
-                      <button key={proposal.id} onClick={() => loadProposalDetails(proposal.id)}>
-                        {proposal.entity} - {proposal.status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="card">
-                  <h2>Proposal Details</h2>
-                  {!selectedProposal && <p>Select a proposal.</p>}
-                  {selectedProposal && (
-                    <div className="stack">
-                      <p>Status: <strong>{selectedProposal.proposal.status}</strong></p>
-                      <p>Entity: {selectedProposal.proposal.entity}</p>
-                      <pre>{JSON.stringify(selectedProposal.proposal.payload, null, 2)}</pre>
-                      <div className="row">
-                        <button
-                          disabled={busy || selectedProposal.proposal.status !== "pending"}
-                          onClick={() => castVote(selectedProposal.proposal.id, "approve")}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          disabled={busy || selectedProposal.proposal.status !== "pending"}
-                          onClick={() => castVote(selectedProposal.proposal.id, "reject")}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                      <h3>Votes</h3>
-                      {selectedProposal.votes.length === 0 && <p>No votes yet.</p>}
-                      {selectedProposal.votes.map((vote) => (
-                        <p key={vote.id}>{memberNameById(vote.voterUserId)}: {vote.decision}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                </div>
+                <ProposalsPanel
+                  proposals={proposals}
+                  statusFilter={statusFilter}
+                  selectedProposal={selectedProposal}
+                  busy={busy}
+                  memberNameById={memberNameById}
+                  onStatusFilterChange={setStatusFilter}
+                  onSelectProposal={loadProposalDetails}
+                  onCastVote={castVote}
+                />
               )}
 
-              <div className="card">
-                <h2>History</h2>
-                {history.length === 0 && <p>No history yet.</p>}
-                {history.map((item) => (
-                  <div key={`history-${item.proposalId}`} className="stack">
-                    <p>
-                      <strong>{item.entity}</strong> by {item.proposerDisplayName} on{" "}
-                      {new Date(item.createdAt).toLocaleString()}
-                    </p>
-                    <p>
-                      Status: {item.status}
-                      {item.committedAt
-                        ? ` | Committed by ${item.committedByDisplayName ?? item.committedByUserId} at ${new Date(item.committedAt).toLocaleString()}`
-                        : ""}
-                    </p>
-                    <pre>{JSON.stringify(item.payload, null, 2)}</pre>
-                    <p>
-                      Votes:{" "}
-                      {item.votes.length === 0
-                        ? "none"
-                        : item.votes.map((vote) => `${vote.voterDisplayName}:${vote.decision}`).join(", ")}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <HistoryCard
+                activeClubId={activeClubId}
+                historyPage={historyPage}
+                statusFilter={historyStatusFilter}
+                entityFilter={historyEntityFilter}
+                from={historyFrom}
+                to={historyTo}
+                onStatusFilterChange={setHistoryStatusFilter}
+                onEntityFilterChange={setHistoryEntityFilter}
+                onFromChange={setHistoryFrom}
+                onToChange={setHistoryTo}
+                onPrevPage={goHistoryPrevPage}
+                onNextPage={goHistoryNextPage}
+              />
             </>
           )}
         </>

@@ -278,7 +278,17 @@ export const createApp = () => {
     }
   );
 
-  app.get<{ Params: { clubId: string }; Querystring: { limit?: string } }>(
+  app.get<{
+    Params: { clubId: string };
+    Querystring: {
+      status?: PendingChangeStatus;
+      entity?: "movie_watch" | "food_order" | "attendance" | "debt_settlement";
+      from?: string;
+      to?: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>(
     "/v1/clubs/:clubId/history",
     {
       schema: {
@@ -286,7 +296,12 @@ export const createApp = () => {
         querystring: {
           type: "object",
           properties: {
-            limit: { type: "string", pattern: "^[0-9]+$" }
+            status: { type: "string", enum: ["pending", "approved", "rejected"] },
+            entity: { type: "string", enum: ["movie_watch", "food_order", "attendance", "debt_settlement"] },
+            from: { type: "string", minLength: 1 },
+            to: { type: "string", minLength: 1 },
+            limit: { type: "string", pattern: "^[0-9]+$" },
+            offset: { type: "string", pattern: "^[0-9]+$" }
           }
         }
       }
@@ -302,8 +317,24 @@ export const createApp = () => {
         reply.code(403);
         return { error: "Forbidden" };
       }
-      const limit = request.query.limit ? Number(request.query.limit) : 50;
-      return listClubHistory(request.params.clubId, limit);
+      if (request.query.from && Number.isNaN(Date.parse(request.query.from))) {
+        reply.code(400);
+        return { error: "Invalid from date" };
+      }
+      if (request.query.to && Number.isNaN(Date.parse(request.query.to))) {
+        reply.code(400);
+        return { error: "Invalid to date" };
+      }
+      const limit = request.query.limit ? Number(request.query.limit) : undefined;
+      const offset = request.query.offset ? Number(request.query.offset) : undefined;
+      return listClubHistory(request.params.clubId, {
+        status: request.query.status,
+        entity: request.query.entity,
+        from: request.query.from,
+        to: request.query.to,
+        limit,
+        offset
+      });
     }
   );
 

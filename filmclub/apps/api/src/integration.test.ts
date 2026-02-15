@@ -526,16 +526,24 @@ test("club history returns lifecycle details including votes and commit metadata
       headers: { Authorization: `Bearer ${alice.token}` }
     });
     assert.equal(historyResponse.statusCode, 200);
-    const history = historyResponse.json() as Array<{
-      proposalId: string;
-      proposerDisplayName: string;
-      status: string;
-      committedAt?: string;
-      committedByDisplayName?: string;
-      votes: Array<{ voterDisplayName: string; decision: string }>;
-    }>;
-    assert.ok(history.length >= 1);
-    const created = history.find((item) => item.proposalId === proposal.id);
+    const history = historyResponse.json() as {
+      items: Array<{
+        proposalId: string;
+        proposerDisplayName: string;
+        status: string;
+        committedAt?: string;
+        committedByDisplayName?: string;
+        votes: Array<{ voterDisplayName: string; decision: string }>;
+      }>;
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    assert.equal(history.limit, 10);
+    assert.equal(history.offset, 0);
+    assert.ok(history.total >= 1);
+    assert.ok(history.items.length >= 1);
+    const created = history.items.find((item) => item.proposalId === proposal.id);
     assert.ok(created);
     assert.equal(created?.proposerDisplayName.startsWith("alice-"), true);
     assert.equal(created?.status, "approved");
@@ -543,6 +551,23 @@ test("club history returns lifecycle details including votes and commit metadata
     assert.ok(created?.committedByDisplayName);
     assert.equal(created?.votes.length, 2);
     assert.equal(created?.votes.every((vote) => vote.decision === "approve"), true);
+
+    const filteredResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/history?status=approved&entity=movie_watch&limit=1&offset=0`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(filteredResponse.statusCode, 200);
+    const filtered = filteredResponse.json() as {
+      items: Array<{ proposalId: string; entity: string; status: string }>;
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    assert.equal(filtered.limit, 1);
+    assert.equal(filtered.offset, 0);
+    assert.ok(filtered.total >= 1);
+    assert.ok(filtered.items.every((item) => item.status === "approved" && item.entity === "movie_watch"));
   } finally {
     await app.close();
   }

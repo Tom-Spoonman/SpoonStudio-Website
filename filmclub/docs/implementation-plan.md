@@ -87,3 +87,6 @@
 3. Added owner-only club settings flow to update approval policy (`PUT /v1/clubs/:clubId/approval-policy`).
 4. Added route split for `/auth`, `/clubs`, `/clubs/:clubId`, `/clubs/:clubId/proposals`.
 5. Added club history endpoint and UI audit timeline (`GET /v1/clubs/:clubId/history`).
+6. Added policy guardrails in settings (fixed-threshold eligibility check + pending-proposal warning).
+7. Added history filters, pagination, and proposal deep-link navigation.
+8. Split major UI sections into reusable components (`ClubSettingsCard`, `ProposalsPanel`, `HistoryCard`).

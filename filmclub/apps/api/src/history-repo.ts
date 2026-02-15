@@ -49,8 +49,64 @@ export interface ClubHistoryItem {
   votes: ClubHistoryVote[];
 }
 
-export const listClubHistory = async (clubId: string, limit = 50): Promise<ClubHistoryItem[]> => {
-  const sanitizedLimit = Math.max(1, Math.min(limit, 200));
+export interface ClubHistoryFilters {
+  status?: PendingChangeStatus;
+  entity?: RecordEntity;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ClubHistoryPage {
+  items: ClubHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const listClubHistory = async (clubId: string, filters: ClubHistoryFilters = {}): Promise<ClubHistoryPage> => {
+  const sanitizedLimit = Math.max(1, Math.min(filters.limit ?? 50, 200));
+  const sanitizedOffset = Math.max(0, filters.offset ?? 0);
+  const whereParts: string[] = ["p.club_id = $1"];
+  const values: Array<string | number> = [clubId];
+  let idx = 2;
+
+  if (filters.status) {
+    whereParts.push(`p.status = $${idx}`);
+    values.push(filters.status);
+    idx += 1;
+  }
+  if (filters.entity) {
+    whereParts.push(`p.entity = $${idx}`);
+    values.push(filters.entity);
+    idx += 1;
+  }
+  if (filters.from) {
+    whereParts.push(`p.created_at >= $${idx}::timestamptz`);
+    values.push(filters.from);
+    idx += 1;
+  }
+  if (filters.to) {
+    whereParts.push(`p.created_at <= $${idx}::timestamptz`);
+    values.push(filters.to);
+    idx += 1;
+  }
+  const whereClause = whereParts.join(" AND ");
+
+  const totalResult = await pool.query<{ count: string }>(
+    `
+    SELECT COUNT(*)::text AS count
+    FROM proposed_changes p
+    WHERE ${whereClause}
+    `,
+    values
+  );
+  const total = Number(totalResult.rows[0]?.count ?? "0");
+
+  const listValues = [...values, sanitizedLimit, sanitizedOffset];
+  const limitParam = idx;
+  const offsetParam = idx + 1;
   const historyResult = await pool.query<DbHistoryRow>(
     `
     SELECT
@@ -70,11 +126,12 @@ export const listClubHistory = async (clubId: string, limit = 50): Promise<ClubH
     INNER JOIN users proposer ON proposer.id = p.proposer_user_id
     LEFT JOIN committed_change_logs c ON c.proposed_change_id = p.id
     LEFT JOIN users committer ON committer.id = c.committed_by_user_id
-    WHERE p.club_id = $1
+    WHERE ${whereClause}
     ORDER BY p.created_at DESC
-    LIMIT $2
+    LIMIT $${limitParam}
+    OFFSET $${offsetParam}
     `,
-    [clubId, sanitizedLimit]
+    listValues
   );
 
   const proposalIds = historyResult.rows.map((row) => row.proposal_id);
@@ -109,7 +166,7 @@ export const listClubHistory = async (clubId: string, limit = 50): Promise<ClubH
     }
   }
 
-  return historyResult.rows.map((row) => ({
+  const items = historyResult.rows.map((row) => ({
     proposalId: row.proposal_id,
     clubId: row.club_id,
     entity: row.entity,
@@ -124,4 +181,10 @@ export const listClubHistory = async (clubId: string, limit = 50): Promise<ClubH
     committedByDisplayName: row.committed_by_display_name ?? undefined,
     votes: votesByProposal.get(row.proposal_id) ?? []
   }));
+  return {
+    items,
+    total,
+    limit: sanitizedLimit,
+    offset: sanitizedOffset
+  };
 };

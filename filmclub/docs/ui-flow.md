@@ -14,6 +14,10 @@ This UI slice provides a working web interface for:
 ## Current implementation
 Location:
 - `apps/web/app/FilmclubClient.tsx` (client workflow component)
+- `apps/web/app/filmclub-types.ts` (shared UI types)
+- `apps/web/app/components/ClubSettingsCard.tsx`
+- `apps/web/app/components/ProposalsPanel.tsx`
+- `apps/web/app/components/HistoryCard.tsx`
 - `apps/web/app/auth/page.tsx`
 - `apps/web/app/clubs/page.tsx`
 - `apps/web/app/clubs/[clubId]/page.tsx`
@@ -30,6 +34,8 @@ Behavior:
 8. Active club settings can update approval policy from the UI when user role is `owner`.
 9. Club routes are split into auth, clubs index, club workspace, and club proposals views.
 10. Club workspace includes history/audit timeline for proposals and votes.
+11. History supports filtering by status/entity/date and paginated browsing.
+12. History entries can deep-link into proposal details route.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
