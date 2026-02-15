@@ -18,6 +18,8 @@ import type {
   ClubMember,
   MeResponse,
   PendingChangeStatus,
+  PaymentReminder,
+  PaymentReminderPage,
   ProposalDetails,
   ProposedChange,
   RecordEntity,
@@ -45,6 +47,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const [balances, setBalances] = useState<ClubBalance[]>([]);
   const [balanceSummary, setBalanceSummary] = useState<ClubBalanceSummary[]>([]);
   const [debtMatrix, setDebtMatrix] = useState<ClubDebtMatrixRow[]>([]);
+  const [paymentReminders, setPaymentReminders] = useState<PaymentReminder[]>([]);
   const [historyPage, setHistoryPage] = useState<ClubHistoryPage>({
     items: [],
     total: 0,
@@ -256,6 +259,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const loadBalances = async () => {
     if (!token || !activeClubId) {
       setBalances([]);
+      setPaymentReminders([]);
       return;
     }
     const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/balance-overview?currency=EUR`, {
@@ -273,6 +277,22 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     setBalances(data.balances);
     setBalanceSummary(data.summary);
     setDebtMatrix(data.matrix);
+  };
+
+  const loadPaymentReminders = async () => {
+    if (!token || !activeClubId) {
+      setPaymentReminders([]);
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/payment-reminders?limit=20&offset=0`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as PaymentReminderPage;
+    setPaymentReminders(data.items);
   };
 
   const loadProposalDetails = async (proposalId: string) => {
@@ -313,6 +333,10 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
   useEffect(() => {
     loadBalances();
+  }, [token, activeClubId]);
+
+  useEffect(() => {
+    loadPaymentReminders();
   }, [token, activeClubId]);
 
   useEffect(() => {
@@ -660,6 +684,37 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     setMessage(`Vote submitted: ${decision}`);
     await loadProposals();
     await loadProposalDetails(proposalId);
+  };
+
+  const sendPaymentReminder = async (row: ClubDebtMatrixRow) => {
+    if (!activeClubId) {
+      setMessage("Select a club first.");
+      return;
+    }
+    const noteInput = window.prompt(
+      `Reminder note for ${row.fromDisplayName} (optional):`,
+      `Please settle ${row.amount.toFixed(2)} ${row.currency}.`
+    );
+    setBusy(true);
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/payment-reminders`, {
+      method: "POST",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        toUserId: row.fromUserId,
+        currency: row.currency,
+        note: noteInput ?? undefined
+      })
+    });
+    const data = (await response.json()) as { error?: string; reminder?: PaymentReminder };
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(data.error ?? "Failed to send reminder.");
+      return;
+    }
+    const amount = data.reminder?.reminderAmount ?? row.amount;
+    const currency = data.reminder?.currency ?? row.currency;
+    setMessage(`Reminder sent to ${row.fromDisplayName} for ${amount.toFixed(2)} ${currency}.`);
+    await loadPaymentReminders();
   };
 
   const submitFoodOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -1073,8 +1128,24 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
                 <h3>Debt Matrix</h3>
                 {debtMatrix.length === 0 && <p>No outstanding directed debts.</p>}
                 {debtMatrix.map((row) => (
-                  <p key={`matrix-${row.fromUserId}-${row.toUserId}-${row.currency}`}>
-                    {row.fromDisplayName} owes {row.toDisplayName}: {row.amount.toFixed(2)} {row.currency}
+                  <div key={`matrix-${row.fromUserId}-${row.toUserId}-${row.currency}`} className="row">
+                    <p>
+                      {row.fromDisplayName} owes {row.toDisplayName}: {row.amount.toFixed(2)} {row.currency}
+                    </p>
+                    {me?.id === row.toUserId && (
+                      <button type="button" onClick={() => sendPaymentReminder(row)} disabled={busy}>
+                        Send reminder
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <h3>Payment Reminder Log</h3>
+                {paymentReminders.length === 0 && <p>No reminders sent yet.</p>}
+                {paymentReminders.map((reminder) => (
+                  <p key={reminder.id}>
+                    {new Date(reminder.createdAt).toLocaleString()} - {reminder.fromDisplayName} reminded{" "}
+                    {reminder.toDisplayName} for {reminder.reminderAmount.toFixed(2)} {reminder.currency}
+                    {reminder.note ? ` (${reminder.note})` : ""}
                   </p>
                 ))}
                 </div>

@@ -179,4 +179,23 @@ export const runMigrations = async () => {
     CREATE INDEX IF NOT EXISTS idx_change_votes_proposed_change_created_at
     ON change_votes (proposed_change_id, created_at ASC);
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payment_reminders (
+      id UUID PRIMARY KEY,
+      club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      currency TEXT NOT NULL,
+      outstanding_amount NUMERIC(12,2) NOT NULL CHECK (outstanding_amount > 0),
+      reminder_amount NUMERIC(12,2) NOT NULL CHECK (reminder_amount > 0),
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_payment_reminders_club_created_at
+    ON payment_reminders (club_id, created_at DESC);
+  `);
 };

@@ -120,6 +120,20 @@ const createFoodOrder = async (
   return response.json() as { id: string; status: string };
 };
 
+const sendPaymentReminder = async (
+  app: ReturnType<typeof createApp>,
+  token: string,
+  clubId: string,
+  payload: { toUserId: string; currency: string; amount?: number; note?: string }
+) => {
+  return app.inject({
+    method: "POST",
+    url: `/v1/clubs/${clubId}/payment-reminders`,
+    headers: { Authorization: `Bearer ${token}` },
+    payload
+  });
+};
+
 test.before(async () => {
   await runMigrations();
 });
@@ -544,6 +558,88 @@ test("debt settlement proposal offsets balances after approval", async () => {
     );
     assert.ok(bobToAlice);
     assert.equal(bobToAlice?.amount, 6);
+  } finally {
+    await app.close();
+  }
+});
+
+test("payment reminders can be sent only for outstanding debt and are listed", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Reminder Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const orderProposal = await createFoodOrder(app, alice.token, {
+      clubId: club.club.id,
+      vendor: "Pasta",
+      totalCost: 30,
+      currency: "EUR",
+      payerUserId: alice.user.id,
+      participantUserIds: [alice.user.id, bob.user.id, carol.user.id]
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${orderProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${orderProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+
+    const sendResponse = await sendPaymentReminder(app, alice.token, club.club.id, {
+      toUserId: bob.user.id,
+      currency: "eur",
+      note: "Please settle before next screening."
+    });
+    assert.equal(sendResponse.statusCode, 201);
+    const created = sendResponse.json() as {
+      reminder: { fromUserId: string; toUserId: string; reminderAmount: number; outstandingAmount: number; currency: string };
+    };
+    assert.equal(created.reminder.fromUserId, alice.user.id);
+    assert.equal(created.reminder.toUserId, bob.user.id);
+    assert.equal(created.reminder.reminderAmount, 10);
+    assert.equal(created.reminder.outstandingAmount, 10);
+    assert.equal(created.reminder.currency, "EUR");
+
+    const listResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/payment-reminders?limit=10&offset=0`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(listResponse.statusCode, 200);
+    const list = listResponse.json() as { total: number; items: Array<{ toUserId: string; fromUserId: string }> };
+    assert.equal(list.total, 1);
+    assert.equal(list.items.length, 1);
+    assert.equal(list.items[0]?.toUserId, bob.user.id);
+    assert.equal(list.items[0]?.fromUserId, alice.user.id);
+  } finally {
+    await app.close();
+  }
+});
+
+test("payment reminder rejects invalid debt direction", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Reminder Guardrail Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    await joinClub(app, bob.token, club.club.joinCode);
+
+    const response = await sendPaymentReminder(app, bob.token, club.club.id, {
+      toUserId: alice.user.id,
+      currency: "EUR"
+    });
+    assert.equal(response.statusCode, 409);
+    const body = response.json() as { code?: string };
+    assert.equal(body.code, "no_outstanding_debt");
   } finally {
     await app.close();
   }

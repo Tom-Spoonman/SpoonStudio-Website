@@ -39,12 +39,15 @@ Behavior:
 11. History supports filtering by status/entity/date and paginated browsing.
 12. History entries can deep-link into proposal details route.
 13. Club settings show guardrail warnings before policy updates that can impact pending proposals.
+14. Debt matrix rows now allow creditors to send payment reminders to debtors.
+15. Workspace now shows a payment-reminder audit log for the active club.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
 2. No dedicated routing yet (`/login`, `/clubs/:id`, etc.).
 3. Debt-settlement now uses member selectors loaded from club memberships.
 4. Attendance now uses member multi-select sourced from club memberships.
+5. Payment reminders are audited actions, not trust-confirmed proposals, because they do not change record facts or balances.
 
 ## Next UI improvements
 1. Continue route decomposition with dedicated components per page section.

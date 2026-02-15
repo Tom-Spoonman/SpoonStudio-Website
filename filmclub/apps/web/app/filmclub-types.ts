@@ -92,6 +92,27 @@ export interface ClubDebtMatrixRow {
   amount: number;
 }
 
+export interface PaymentReminder {
+  id: string;
+  clubId: string;
+  fromUserId: string;
+  fromDisplayName: string;
+  toUserId: string;
+  toDisplayName: string;
+  currency: string;
+  outstandingAmount: number;
+  reminderAmount: number;
+  note?: string;
+  createdAt: string;
+}
+
+export interface PaymentReminderPage {
+  items: PaymentReminder[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ClubHistoryItem {
   proposalId: string;
   clubId: string;

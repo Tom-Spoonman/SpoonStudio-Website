@@ -95,3 +95,5 @@
 11. Added DB indexes for proposal/vote history query performance.
 12. Added production env templates and staging smoke script (`scripts/smoke-staging.ps1`).
 13. Added self-host Windows + Cloudflare tunnel docs and automation scripts.
+14. Added payment reminder API (`POST/GET /v1/clubs/:clubId/payment-reminders`) with persistence and guardrails.
+15. Added payment reminder UI actions from debt matrix plus reminder audit log panel.

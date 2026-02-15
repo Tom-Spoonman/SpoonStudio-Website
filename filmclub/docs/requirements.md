@@ -41,3 +41,9 @@ Filmclub is a web companion app for a recurring in-person movie-night group.
 3. Debt settlement scope (phase 1): track balances only.
 4. Debt settlement scope (later): order placer/takeover member can send debt reminders.
 5. Privacy model: multiple independent filmclubs.
+
+## Implemented update
+1. Payment reminder flow is now implemented as an audited action:
+   - A creditor can send a reminder to a debtor for an outstanding directed balance.
+   - Reminder creation does not mutate ledger balances.
+   - Reminder entries are persisted and queryable per club.

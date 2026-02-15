@@ -30,6 +30,7 @@ import {
 import { listClubBalanceSummary, listClubBalances, listClubDebtMatrix } from "./ledger-repo.js";
 import { isValidPayloadForEntity } from "./proposal-payload.js";
 import { listClubHistory } from "./history-repo.js";
+import { createPaymentReminder, listPaymentRemindersForClub } from "./payment-reminder-repo.js";
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -667,6 +668,109 @@ export const createApp = () => {
         listClubDebtMatrix(request.params.clubId, request.query.currency)
       ]);
       return { balances, summary, matrix };
+    }
+  );
+
+  app.post<{
+    Params: { clubId: string };
+    Body: { toUserId: string; currency: string; amount?: number; note?: string };
+  }>(
+    "/v1/clubs/:clubId/payment-reminders",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        body: {
+          type: "object",
+          required: ["toUserId", "currency"],
+          properties: {
+            toUserId: { type: "string", minLength: 1 },
+            currency: { type: "string", minLength: 1, maxLength: 8 },
+            amount: { type: "number", exclusiveMinimum: 0 },
+            note: { type: "string", minLength: 1, maxLength: 500 }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      const created = await createPaymentReminder({
+        clubId: request.params.clubId,
+        fromUserId: user.id,
+        toUserId: request.body.toUserId.trim(),
+        currency: request.body.currency.trim(),
+        amount: request.body.amount,
+        note: request.body.note
+      });
+      if ("error" in created) {
+        if (created.error === "participant_not_member") {
+          reply.code(400);
+          return { error: "Both users must be club members", code: created.error };
+        }
+        if (created.error === "self_reminder_not_allowed") {
+          reply.code(400);
+          return { error: "Cannot remind yourself", code: created.error };
+        }
+        if (created.error === "no_outstanding_debt") {
+          reply.code(409);
+          return { error: "No outstanding debt for this user/currency", code: created.error };
+        }
+        if (created.error === "amount_exceeds_outstanding") {
+          reply.code(400);
+          return { error: "Reminder amount exceeds outstanding debt", code: created.error };
+        }
+        reply.code(400);
+        return { error: "Invalid reminder amount", code: created.error };
+      }
+      reply.code(201);
+      return { reminder: created.data };
+    }
+  );
+
+  app.get<{
+    Params: { clubId: string };
+    Querystring: { limit?: string; offset?: string; toUserId?: string };
+  }>(
+    "/v1/clubs/:clubId/payment-reminders",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        querystring: {
+          type: "object",
+          properties: {
+            limit: { type: "string", pattern: "^[0-9]+$" },
+            offset: { type: "string", pattern: "^[0-9]+$" },
+            toUserId: { type: "string", minLength: 1 }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      const limit = request.query.limit ? Number(request.query.limit) : undefined;
+      const offset = request.query.offset ? Number(request.query.offset) : undefined;
+      return listPaymentRemindersForClub(request.params.clubId, {
+        limit,
+        offset,
+        toUserId: request.query.toUserId
+      });
     }
   );
 
