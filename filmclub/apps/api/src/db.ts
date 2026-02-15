@@ -108,4 +108,45 @@ export const runMigrations = async () => {
       committed_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS food_orders (
+      id UUID PRIMARY KEY,
+      proposed_change_id UUID UNIQUE REFERENCES proposed_changes(id) ON DELETE SET NULL,
+      club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      vendor TEXT NOT NULL,
+      total_cost NUMERIC(12,2) NOT NULL CHECK (total_cost >= 0),
+      currency TEXT NOT NULL,
+      payer_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    ALTER TABLE food_orders
+    ADD COLUMN IF NOT EXISTS proposed_change_id UUID UNIQUE REFERENCES proposed_changes(id) ON DELETE SET NULL;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS food_order_participants (
+      food_order_id UUID NOT NULL REFERENCES food_orders(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      PRIMARY KEY (food_order_id, user_id)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id UUID PRIMARY KEY,
+      club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      food_order_id UUID REFERENCES food_orders(id) ON DELETE SET NULL,
+      from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      amount NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
+      currency TEXT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL
+    );
+  `);
 };

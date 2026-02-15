@@ -75,6 +75,13 @@ interface ClubMember {
   membership: ClubMembership;
 }
 
+interface ClubBalance {
+  userId: string;
+  displayName: string;
+  currency: string;
+  netAmount: number;
+}
+
 export default function HomePage() {
   const [health, setHealth] = useState<string>("checking");
   const [token, setToken] = useState<string>("");
@@ -83,6 +90,7 @@ export default function HomePage() {
   const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
   const [activeClubId, setActiveClubId] = useState<string>("");
   const [proposals, setProposals] = useState<ProposedChange[]>([]);
+  const [balances, setBalances] = useState<ClubBalance[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<ProposalDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PendingChangeStatus>("pending");
   const [message, setMessage] = useState<string>("");
@@ -106,6 +114,11 @@ export default function HomePage() {
   const [debtToUserId, setDebtToUserId] = useState("");
   const [debtAmount, setDebtAmount] = useState("0");
   const [debtCurrency, setDebtCurrency] = useState("EUR");
+  const [orderVendor, setOrderVendor] = useState("");
+  const [orderTotalCost, setOrderTotalCost] = useState("0");
+  const [orderCurrency, setOrderCurrency] = useState("EUR");
+  const [orderPayerUserId, setOrderPayerUserId] = useState("");
+  const [orderParticipantUserIds, setOrderParticipantUserIds] = useState<string[]>([]);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -207,6 +220,22 @@ export default function HomePage() {
     }
   };
 
+  const loadBalances = async () => {
+    if (!token || !activeClubId) {
+      setBalances([]);
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/balances?currency=EUR`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as ClubBalance[];
+    setBalances(data);
+  };
+
   const loadProposalDetails = async (proposalId: string) => {
     const response = await fetch(`${apiBase}/v1/proposed-changes/${proposalId}`, {
       headers: authHeaders,
@@ -244,11 +273,27 @@ export default function HomePage() {
   }, [token, activeClubId]);
 
   useEffect(() => {
+    loadBalances();
+  }, [token, activeClubId]);
+
+  useEffect(() => {
     if (clubMembers.length === 0) {
       setAttendanceMemberIds([]);
+      setOrderPayerUserId("");
+      setOrderParticipantUserIds([]);
       return;
     }
     setAttendanceMemberIds((prev) => prev.filter((id) => clubMembers.some((member) => member.user.id === id)));
+    setOrderPayerUserId((prev) => {
+      if (prev && clubMembers.some((member) => member.user.id === prev)) {
+        return prev;
+      }
+      return clubMembers[0].user.id;
+    });
+    setOrderParticipantUserIds((prev) => {
+      const valid = prev.filter((id) => clubMembers.some((member) => member.user.id === id));
+      return valid.length > 0 ? valid : clubMembers.map((member) => member.user.id);
+    });
   }, [clubMembers]);
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
@@ -449,6 +494,60 @@ export default function HomePage() {
     setMessage(`Vote submitted: ${decision}`);
     await loadProposals();
     await loadProposalDetails(proposalId);
+  };
+
+  const submitFoodOrder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeClubId) {
+      setMessage("Select a club first.");
+      return;
+    }
+    if (!orderVendor.trim()) {
+      setMessage("Order vendor is required.");
+      return;
+    }
+    const totalCost = Number(orderTotalCost);
+    if (!Number.isFinite(totalCost) || totalCost < 0) {
+      setMessage("Order total cost must be a non-negative number.");
+      return;
+    }
+    if (!orderPayerUserId) {
+      setMessage("Select payer.");
+      return;
+    }
+    if (orderParticipantUserIds.length === 0) {
+      setMessage("Select at least one participant.");
+      return;
+    }
+    setBusy(true);
+    const response = await fetch(`${apiBase}/v1/food-orders`, {
+      method: "POST",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clubId: activeClubId,
+        vendor: orderVendor.trim(),
+        totalCost,
+        currency: orderCurrency.trim().toUpperCase(),
+        payerUserId: orderPayerUserId,
+        participantUserIds: orderParticipantUserIds
+      })
+    });
+    const data = (await response.json()) as { error?: string; id?: string; status?: PendingChangeStatus };
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(data.error ?? "Create food order failed");
+      return;
+    }
+    if (data.status === "approved") {
+      setMessage("Food order proposal auto-approved and balances updated.");
+    } else {
+      setMessage("Food order submitted as proposal. It must be approved before balances update.");
+    }
+    await loadProposals();
+    if (data.id) {
+      await loadProposalDetails(data.id);
+    }
+    await loadBalances();
   };
 
   const memberNameById = (userId: string) => {
@@ -652,6 +751,61 @@ export default function HomePage() {
                   )}
                   <button type="submit" disabled={busy}>Submit Proposal</button>
                 </form>
+              </div>
+
+              <div className="card">
+                <h2>Food Order + Balances</h2>
+                <form onSubmit={submitFoodOrder} className="stack">
+                  <input
+                    placeholder="Vendor"
+                    value={orderVendor}
+                    onChange={(event) => setOrderVendor(event.target.value)}
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={orderTotalCost}
+                    onChange={(event) => setOrderTotalCost(event.target.value)}
+                  />
+                  <input
+                    placeholder="Currency (e.g. EUR)"
+                    value={orderCurrency}
+                    onChange={(event) => setOrderCurrency(event.target.value)}
+                  />
+                  <label>Payer</label>
+                  <select value={orderPayerUserId} onChange={(event) => setOrderPayerUserId(event.target.value)}>
+                    {clubMembers.map((member) => (
+                      <option key={`payer-${member.user.id}`} value={member.user.id}>
+                        {member.user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <label>Participants</label>
+                  <select
+                    multiple
+                    value={orderParticipantUserIds}
+                    onChange={(event) => {
+                      const values = Array.from(event.target.selectedOptions).map((option) => option.value);
+                      setOrderParticipantUserIds(values);
+                    }}
+                  >
+                    {clubMembers.map((member) => (
+                      <option key={`order-participant-${member.user.id}`} value={member.user.id}>
+                        {member.user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" disabled={busy}>Record Food Order</button>
+                </form>
+
+                <h3>Balances</h3>
+                {balances.length === 0 && <p>No balances yet.</p>}
+                {balances.map((balance) => (
+                  <p key={`${balance.userId}:${balance.currency}`}>
+                    {balance.displayName}: {balance.netAmount.toFixed(2)} {balance.currency}
+                  </p>
+                ))}
               </div>
 
               <div className="grid2">

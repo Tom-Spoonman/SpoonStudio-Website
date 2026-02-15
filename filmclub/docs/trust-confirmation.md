@@ -41,6 +41,7 @@ Rules:
 2. Proposer cannot vote on their own proposal.
 3. One vote per member per proposal.
 4. Approved proposals are written to `committed_change_logs`.
+5. For `food_order` proposals, ledger side effects are executed only at approval time.
 
 ## Edge-case behavior
 For single-member clubs, proposal status is evaluated immediately on creation and resolves without requiring a vote (no eligible non-proposer voters exist).

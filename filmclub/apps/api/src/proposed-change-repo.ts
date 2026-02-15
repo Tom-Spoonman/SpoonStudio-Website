@@ -9,6 +9,7 @@ import type {
   RecordEntity
 } from "@filmclub/shared";
 import { pool } from "./db.js";
+import { applyApprovedFoodOrderProposal } from "./ledger-repo.js";
 
 interface DbProposedChangeRow {
   id: string;
@@ -85,6 +86,26 @@ const getNextStatus = (
     return "rejected";
   }
   return "pending";
+};
+
+const applyProposalSideEffects = async (
+  params: {
+    proposal: ProposedChange;
+  },
+  client: import("pg").PoolClient
+) => {
+  if (params.proposal.entity === "food_order") {
+    const applied = await applyApprovedFoodOrderProposal(client, {
+      proposalId: params.proposal.id,
+      clubId: params.proposal.clubId,
+      proposerUserId: params.proposal.proposerUserId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  return { ok: true as const };
 };
 
 export const createProposedChange = async (params: {
@@ -263,6 +284,13 @@ export const castVoteAndEvaluate = async (params: {
 
     const status = getNextStatus(params.clubPolicy, approvals, rejections, eligibleVoterCount);
     if (status !== "pending") {
+      if (status === "approved") {
+        const sideEffectResult = await applyProposalSideEffects({ proposal }, client);
+        if ("error" in sideEffectResult) {
+          await client.query("ROLLBACK");
+          return { error: "invalid_payload" as const };
+        }
+      }
       await client.query(
         `
         UPDATE proposed_changes
@@ -353,6 +381,13 @@ export const evaluateProposalStatus = async (params: {
     const status = getNextStatus(params.clubPolicy, approvals, rejections, eligibleVoterCount);
 
     if (status !== "pending") {
+      if (status === "approved") {
+        const sideEffectResult = await applyProposalSideEffects({ proposal }, client);
+        if ("error" in sideEffectResult) {
+          await client.query("ROLLBACK");
+          return { error: "invalid_payload" as const };
+        }
+      }
       await client.query(
         `
         UPDATE proposed_changes

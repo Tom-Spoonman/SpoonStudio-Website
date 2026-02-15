@@ -81,6 +81,28 @@ const getProposal = async (app: ReturnType<typeof createApp>, token: string, pro
   return response.json() as { proposal: { status: string }; votes: Array<{ decision: string }> };
 };
 
+const createFoodOrder = async (
+  app: ReturnType<typeof createApp>,
+  token: string,
+  input: {
+    clubId: string;
+    vendor: string;
+    totalCost: number;
+    currency: string;
+    payerUserId: string;
+    participantUserIds: string[];
+  }
+) => {
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/food-orders",
+    headers: { Authorization: `Bearer ${token}` },
+    payload: input
+  });
+  assert.equal(response.statusCode, 201);
+  return response.json() as { id: string; status: string };
+};
+
 test.before(async () => {
   await runMigrations();
 });
@@ -197,6 +219,64 @@ test("fixed policy can reject immediately when requirement is impossible", async
 
     const proposal = await createProposal(app, alice.token, club.club.id);
     assert.equal(proposal.status, "rejected");
+  } finally {
+    await app.close();
+  }
+});
+
+test("food order creates ledger and balances per member", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Ledger Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const proposal = await createFoodOrder(app, alice.token, {
+      clubId: club.club.id,
+      vendor: "Pizza Place",
+      totalCost: 30,
+      currency: "EUR",
+      payerUserId: alice.user.id,
+      participantUserIds: [alice.user.id, bob.user.id, carol.user.id]
+    });
+    assert.equal(proposal.status, "pending");
+
+    const approveBob = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    assert.equal(approveBob.statusCode, 200);
+
+    const approveCarol = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+    assert.equal(approveCarol.statusCode, 200);
+
+    const balancesResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/balances?currency=EUR`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(balancesResponse.statusCode, 200);
+    const balances = balancesResponse.json() as Array<{ userId: string; netAmount: number }>;
+
+    const aliceBalance = balances.find((entry) => entry.userId === alice.user.id);
+    const bobBalance = balances.find((entry) => entry.userId === bob.user.id);
+    const carolBalance = balances.find((entry) => entry.userId === carol.user.id);
+
+    assert.ok(aliceBalance);
+    assert.ok(bobBalance);
+    assert.ok(carolBalance);
+    assert.equal(aliceBalance?.netAmount, 20);
+    assert.equal(bobBalance?.netAmount, -10);
+    assert.equal(carolBalance?.netAmount, -10);
   } finally {
     await app.close();
   }

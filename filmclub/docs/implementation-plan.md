@@ -58,3 +58,18 @@
 7. Added logout endpoint and server-side session invalidation.
 8. Added Fastify request schemas for active API endpoints.
 9. Added API integration tests for auth/membership and approval-policy outcomes.
+
+## Step 4 scope (in progress)
+1. Add DB schema for:
+   - `food_orders`
+   - `food_order_participants`
+   - `ledger_entries`
+2. Add API endpoints for food order capture and per-club balance calculation.
+3. Add minimal web UI for creating food orders and displaying balances.
+
+## Step 4 progress notes
+1. Added ledger tables in API migrations.
+2. Added `POST /v1/food-orders`.
+3. Added `GET /v1/clubs/:clubId/balances`.
+4. Added food order and balances panel in web UI.
+5. Enforced trust-confirmation: food orders are applied to ledger only after proposal approval.

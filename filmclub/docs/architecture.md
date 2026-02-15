@@ -80,3 +80,4 @@ Current tradeoff:
 - Auth/membership data is durable.
 - Proposal, vote, and commit-log entities are now persisted.
 - Single-member clubs are auto-resolved at proposal creation due zero eligible non-proposer voters.
+- Debt ledger currently supports equal-split food orders and per-member net balances only.

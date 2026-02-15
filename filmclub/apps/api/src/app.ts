@@ -24,6 +24,7 @@ import {
   listProposedChangesForClub,
   listProposedChangesForClubs
 } from "./proposed-change-repo.js";
+import { listClubBalances } from "./ledger-repo.js";
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -351,12 +352,121 @@ export const createApp = () => {
         actorUserId: user.id
       });
       if ("error" in evaluated) {
+        if (evaluated.error === "invalid_payload") {
+          reply.code(400);
+          return { error: "Invalid proposal payload for selected entity" };
+        }
         reply.code(500);
         return { error: "Failed to evaluate proposal status" };
       }
 
       reply.code(201);
       return evaluated.data.proposal;
+    }
+  );
+
+  app.post<{
+    Body: {
+      clubId: string;
+      vendor: string;
+      totalCost: number;
+      currency: string;
+      payerUserId: string;
+      participantUserIds: string[];
+    };
+  }>(
+    "/v1/food-orders",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["clubId", "vendor", "totalCost", "currency", "payerUserId", "participantUserIds"],
+          properties: {
+            clubId: { type: "string", minLength: 1 },
+            vendor: { type: "string", minLength: 1 },
+            totalCost: { type: "number", minimum: 0 },
+            currency: { type: "string", minLength: 1, maxLength: 8 },
+            payerUserId: { type: "string", minLength: 1 },
+            participantUserIds: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", minLength: 1 }
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.body.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      const club = await findClubById(request.body.clubId);
+      if (!club) {
+        reply.code(404);
+        return { error: "Club not found" };
+      }
+      const created = await createProposedChange({
+        clubId: request.body.clubId,
+        entity: "food_order",
+        payload: {
+          vendor: request.body.vendor.trim(),
+          totalCost: request.body.totalCost,
+          currency: request.body.currency.trim().toUpperCase(),
+          payerUserId: request.body.payerUserId,
+          participantUserIds: request.body.participantUserIds
+        },
+        proposerUserId: user.id
+      });
+      const evaluated = await evaluateProposalStatus({
+        proposalId: created.id,
+        clubPolicy: club.approvalPolicy,
+        actorUserId: user.id
+      });
+      if ("error" in evaluated) {
+        if (evaluated.error === "invalid_payload") {
+          reply.code(400);
+          return { error: "Invalid food order payload" };
+        }
+        reply.code(500);
+        return { error: "Failed to evaluate food-order proposal" };
+      }
+      reply.code(201);
+      return evaluated.data.proposal;
+    }
+  );
+
+  app.get<{ Params: { clubId: string }; Querystring: { currency?: string } }>(
+    "/v1/clubs/:clubId/balances",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        querystring: {
+          type: "object",
+          properties: {
+            currency: { type: "string", minLength: 1, maxLength: 8 }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      return listClubBalances(request.params.clubId, request.query.currency);
     }
   );
 
@@ -426,6 +536,10 @@ export const createApp = () => {
           reply.code(409);
           return { error: "Proposal is already resolved" };
         }
+        if (result.error === "invalid_payload") {
+          reply.code(400);
+          return { error: "Invalid proposal payload for execution" };
+        }
         reply.code(404);
         return { error: "Not found" };
       }
@@ -475,6 +589,10 @@ export const createApp = () => {
         if (result.error === "already_resolved") {
           reply.code(409);
           return { error: "Proposal is already resolved" };
+        }
+        if (result.error === "invalid_payload") {
+          reply.code(400);
+          return { error: "Invalid proposal payload for execution" };
         }
         reply.code(404);
         return { error: "Not found" };

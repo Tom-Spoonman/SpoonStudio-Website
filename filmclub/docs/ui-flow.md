@@ -8,6 +8,7 @@ This UI slice provides a working web interface for:
 4. Proposal creation
 5. Proposal list/filter/detail
 6. Approve/reject voting
+7. Food order capture and current member balances
 
 ## Current implementation
 Location:
@@ -19,6 +20,7 @@ Behavior:
 3. Club context is selected from "My Clubs".
 4. Proposal creation now uses typed form inputs per entity type.
 5. Logout triggers server-side session invalidation (`POST /v1/auth/logout`) before local token cleanup.
+6. Food order form can create split ledger entries and refresh club balances.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
