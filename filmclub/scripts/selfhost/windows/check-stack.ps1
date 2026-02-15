@@ -38,19 +38,15 @@ function Test-Http([string]$Name, [string]$Url, [System.Collections.Generic.List
 }
 
 function Get-Pm2ProcessStatus([string]$Name) {
-  $describe = pm2 describe $Name 2>$null
-  if ($LASTEXITCODE -ne 0 -or -not $describe) {
+  $pidOutput = (pm2 pid $Name 2>$null)
+  if ($LASTEXITCODE -ne 0 -or -not $pidOutput) {
     return "missing"
   }
-  $statusLine = $describe | Where-Object { $_ -match "status\s+│" } | Select-Object -First 1
-  if (-not $statusLine) {
-    return "unknown"
+  $pm2Pid = $pidOutput.Trim()
+  if ([string]::IsNullOrWhiteSpace($pm2Pid) -or $pm2Pid -eq "0") {
+    return "stopped"
   }
-  $parts = $statusLine -split "│"
-  if ($parts.Count -lt 3) {
-    return "unknown"
-  }
-  return $parts[2].Trim()
+  return "online"
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
