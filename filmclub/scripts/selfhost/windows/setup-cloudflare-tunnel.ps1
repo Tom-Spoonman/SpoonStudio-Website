@@ -1,7 +1,7 @@
 param(
   [string]$TunnelName = "filmclub",
   [string]$WebHostname = "filmclub.spoon.studio",
-  [string]$ApiHostname = "api.filmclub.spoon.studio"
+  [string]$ApiHostname = "api.spoon.studio"
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,3 +26,4 @@ Write-Host "1. Copy filmclub/env/cloudflared.config.example.yml to $HOME/.cloudf
 Write-Host "2. Replace <TUNNEL_UUID> and <USER> placeholders."
 Write-Host "3. Start tunnel: cloudflared tunnel run $TunnelName"
 Write-Host "4. Optional service install: cloudflared service install"
+

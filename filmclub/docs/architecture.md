@@ -47,7 +47,7 @@ Trust-confirmation workflow:
 1. Web:
    - Deploy `apps/web` under `filmclub.spoon.studio` (confirmed target).
 2. API:
-   - Deploy `apps/api` as separate service (e.g., `api-filmclub.spoon.studio`).
+   - Deploy `apps/api` as separate service (e.g., `api.spoon.studio`).
 3. Database:
    - Managed PostgreSQL (Neon/Supabase/RDS/Fly Postgres).
 4. Secrets/config:
@@ -82,3 +82,4 @@ Current tradeoff:
 - Single-member clubs are auto-resolved at proposal creation due zero eligible non-proposer voters.
 - Debt ledger currently supports equal-split food orders and per-member net balances only.
 - Food-order custom split and settlement-on-approval are supported; dedicated settlement UI is still pending.
+

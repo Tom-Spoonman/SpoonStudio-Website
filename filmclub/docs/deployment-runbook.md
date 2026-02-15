@@ -55,6 +55,7 @@ For self-hosting on Windows instead of managed infra, use:
 Run from repo root after API/web are deployed:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
-  -ApiBaseUrl "https://api.filmclub.spoon.studio" `
+  -ApiBaseUrl "https://api.spoon.studio" `
   -WebBaseUrl "https://filmclub.spoon.studio"
 ```
+

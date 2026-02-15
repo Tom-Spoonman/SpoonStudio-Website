@@ -3,10 +3,20 @@ import { resolve } from "node:path";
 import { config } from "dotenv";
 import { Pool } from "pg";
 
-const envCandidates = [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.env")];
-const envFile = envCandidates.find((candidate) => existsSync(candidate));
-if (envFile) {
-  config({ path: envFile });
+const isProduction = process.env.NODE_ENV === "production";
+const envCandidates = isProduction
+  ? [
+      resolve(process.cwd(), "../../.env"),
+      resolve(process.cwd(), ".env"),
+      resolve(process.cwd(), "../../.env.production"),
+      resolve(process.cwd(), ".env.production")
+    ]
+  : [resolve(process.cwd(), "../../.env"), resolve(process.cwd(), ".env")];
+
+for (const envFile of envCandidates) {
+  if (existsSync(envFile)) {
+    config({ path: envFile, override: true });
+  }
 }
 
 const databaseUrl = process.env.DATABASE_URL;

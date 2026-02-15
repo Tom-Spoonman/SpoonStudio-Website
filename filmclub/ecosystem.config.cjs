@@ -3,8 +3,8 @@ module.exports = {
     {
       name: "filmclub-api",
       cwd: "./apps/api",
-      script: "npm",
-      args: "run start",
+      script: "./dist/apps/api/src/index.js",
+      interpreter: "node",
       env: {
         NODE_ENV: "production",
         API_PORT: 4000
@@ -13,12 +13,14 @@ module.exports = {
     {
       name: "filmclub-web",
       cwd: "./apps/web",
-      script: "npm",
-      args: "run start -- -p 3000",
+      script: "./node_modules/next/dist/bin/next",
+      args: "start -p 3000",
+      interpreter: "node",
       env: {
         NODE_ENV: "production",
-        NEXT_PUBLIC_API_BASE_URL: "https://api.filmclub.spoon.studio"
+        NEXT_PUBLIC_API_BASE_URL: "https://api.spoon.studio"
       }
     }
   ]
 };
+

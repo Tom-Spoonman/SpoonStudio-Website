@@ -6,6 +6,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Ensure modern TLS is used on Windows PowerShell (5.1) for HTTPS endpoints.
+try {
+  $tls12 = [Net.SecurityProtocolType]::Tls12
+  $tls13 = [Enum]::GetNames([Net.SecurityProtocolType]) -contains "Tls13"
+  if ($tls13) {
+    [Net.ServicePointManager]::SecurityProtocol = $tls12 -bor [Net.SecurityProtocolType]::Tls13
+  } else {
+    [Net.ServicePointManager]::SecurityProtocol = $tls12
+  }
+} catch {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
+
 function New-RandomName([string]$prefix) {
   return "$prefix-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())-$([System.Guid]::NewGuid().ToString('N').Substring(0, 6))"
 }
@@ -87,13 +100,13 @@ $proposal = Invoke-FilmclubRequest -Method "POST" -Url "$ApiBaseUrl/v1/proposed-
   entity = "movie_watch"
   payload = @{
     title = "Smoke Test Movie"
-    watchedOn = (Get-Date -AsUTC -Format "yyyy-MM-dd")
+    watchedOn = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
   }
 }
 $proposalId = $proposal.id
 
 Write-Host "9) Approve proposal..."
-Invoke-FilmclubRequest -Method "POST" -Url "$ApiBaseUrl/v1/proposed-changes/$proposalId/approve" -Headers $bobHeaders | Out-Null
+Invoke-FilmclubRequest -Method "POST" -Url "$ApiBaseUrl/v1/proposed-changes/$proposalId/approve" -Headers $bobHeaders -Body @{} | Out-Null
 
 Write-Host "10) Verify proposal status..."
 $proposalDetails = Invoke-FilmclubRequest -Method "GET" -Url "$ApiBaseUrl/v1/proposed-changes/$proposalId" -Headers $aliceHeaders

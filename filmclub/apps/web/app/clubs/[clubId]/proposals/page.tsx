@@ -1,9 +1,15 @@
+import { Suspense } from "react";
 import FilmclubClient from "../../../FilmclubClient";
 
-export default function ClubProposalsPage({
+export default async function ClubProposalsPage({
   params
 }: {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }) {
-  return <FilmclubClient view="proposals" routeClubId={params.clubId} />;
+  const { clubId } = await params;
+  return (
+    <Suspense fallback={<main><p>Loading...</p></main>}>
+      <FilmclubClient view="proposals" routeClubId={clubId} />
+    </Suspense>
+  );
 }

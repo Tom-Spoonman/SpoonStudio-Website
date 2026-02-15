@@ -33,7 +33,7 @@ Minimum API values:
 4. `SESSION_TTL_DAYS=30`
 
 Minimum web values:
-1. `NEXT_PUBLIC_API_BASE_URL=https://api.filmclub.spoon.studio`
+1. `NEXT_PUBLIC_API_BASE_URL=https://api.spoon.studio`
 
 ## 2) Start local app stack
 From repo root:
@@ -59,7 +59,7 @@ Option A (assisted script):
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\setup-cloudflare-tunnel.ps1 `
   -TunnelName "filmclub" `
   -WebHostname "filmclub.spoon.studio" `
-  -ApiHostname "api.filmclub.spoon.studio"
+  -ApiHostname "api.spoon.studio"
 ```
 
 Then:
@@ -75,11 +75,22 @@ Optional: install as Windows service:
 cloudflared service install
 ```
 
+Troubleshooting:
+1. If logs show `dial tcp [::1]:3000 ... actively refused`, set ingress services to `127.0.0.1` instead of `localhost`.
+2. Confirm local origins respond before testing public hostnames:
+```powershell
+Invoke-WebRequest http://127.0.0.1:3000
+Invoke-WebRequest http://127.0.0.1:4000/health
+```
+3. If PM2 logs show `NPM.CMD` parsed as JavaScript (`Unexpected token ':'`), ensure `ecosystem.config.cjs` uses `script: "npm.cmd"` with `interpreter: "none"`.
+4. If PM2 start shows `Process failed to launch spawn EINVAL`, use `cmd.exe /c npm ...` launch form in `ecosystem.config.cjs` (already set in this repo).
+5. If PM2 logs repeatedly show `NPM.CMD` parsing errors, bypass npm in PM2 and run direct Node entrypoints (`apps/api/dist/index.js` and `apps/web/node_modules/next/dist/bin/next start`).
+
 ## 4) Validate deployment
 Run:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
-  -ApiBaseUrl "https://api.filmclub.spoon.studio" `
+  -ApiBaseUrl "https://api.spoon.studio" `
   -WebBaseUrl "https://filmclub.spoon.studio"
 ```
 
@@ -92,3 +103,4 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\sto
 1. This is cost-free but uptime depends on your machine and home network.
 2. Keep Windows updates/reboots in mind when planning availability.
 3. Add regular Postgres backups before using this for important records.
+
