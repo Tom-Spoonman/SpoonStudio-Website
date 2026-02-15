@@ -85,6 +85,13 @@ Optional: install as Windows service:
 cloudflared service install
 ```
 
+Service mode management (recommended for always-on host):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1 -Action install
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1 -Action start
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1 -Action status
+```
+
 Troubleshooting:
 1. If logs show `dial tcp [::1]:3000 ... actively refused`, set ingress services to `127.0.0.1` instead of `localhost`.
 2. Confirm local origins respond before testing public hostnames:
@@ -231,6 +238,10 @@ nslookup api.spoon.studio
 cloudflared tunnel run filmclub
 ```
 4. Confirm ingress in `%USERPROFILE%\.cloudflared\config.yml` points to `127.0.0.1` (not `localhost`).
+5. If using service mode, check service status:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1 -Action status
+```
 
 ## Backups and restore
 ### Create a backup
@@ -247,6 +258,17 @@ Optional parameters:
 5. `-PgDatabase filmclub`
 
 Backups are stored as PostgreSQL custom-format `.dump` files.
+
+### Verify backup health
+Check if latest backup is recent and large enough:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\verify-backup.ps1
+```
+
+Optional verification parameters:
+1. `-BackupRoot "C:\path\to\backups"`
+2. `-MaxAgeHours 30`
+3. `-MinSizeBytes 10240`
 
 ### Suggested schedule
 1. Open Windows Task Scheduler.
@@ -281,4 +303,15 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
   -ApiBaseUrl "https://api.spoon.studio" `
   -WebBaseUrl "https://filmclub.spoon.studio"
 ```
+
+## Release checklist command
+Run all release checks in sequence:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\release-check.ps1
+```
+
+Options:
+1. `-SkipSmoke`
+2. `-ApiBaseUrl "https://api.spoon.studio"`
+3. `-WebBaseUrl "https://filmclub.spoon.studio"`
 

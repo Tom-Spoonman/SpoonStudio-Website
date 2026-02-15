@@ -69,4 +69,7 @@ For Windows self-host operations, also use:
 1. Preflight: `.\filmclub\scripts\selfhost\windows\preflight.ps1`
 2. Stack check: `.\filmclub\scripts\selfhost\windows\check-stack.ps1`
 3. Restore: `.\filmclub\scripts\selfhost\windows\restore-postgres.ps1`
+4. Backup verify: `.\filmclub\scripts\selfhost\windows\verify-backup.ps1`
+5. Cloudflared service manager: `.\filmclub\scripts\selfhost\windows\manage-cloudflared-service.ps1`
+6. Combined release check: `.\filmclub\scripts\selfhost\windows\release-check.ps1`
 
