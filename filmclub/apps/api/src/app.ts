@@ -10,6 +10,7 @@ import {
   findClubById,
   findClubByJoinCode,
   findMembership,
+  findUserCredentialsByDisplayName,
   findUserByDisplayName,
   findUserBySessionToken,
   isMemberOfClub,
@@ -31,6 +32,8 @@ import { listClubBalanceSummary, listClubBalances, listClubDebtMatrix } from "./
 import { isValidPayloadForEntity } from "./proposal-payload.js";
 import { listClubHistory } from "./history-repo.js";
 import { createPaymentReminder, listPaymentRemindersForClub } from "./payment-reminder-repo.js";
+import { hasMeetingsForClub, listMeetingsForClub, validateMeetingEditableForRecords } from "./meeting-repo.js";
+import { hashPassword, verifyPassword } from "./password.js";
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -99,15 +102,16 @@ export const createApp = () => {
 
   app.get("/health", async () => ({ status: "ok" }));
 
-  app.post<{ Body: { displayName: string } }>(
+  app.post<{ Body: { displayName: string; password: string } }>(
     "/v1/auth/register",
     {
       schema: {
         body: {
           type: "object",
-          required: ["displayName"],
+          required: ["displayName", "password"],
           properties: {
-            displayName: { type: "string", minLength: 1 }
+            displayName: { type: "string", minLength: 1 },
+            password: { type: "string", minLength: 6 }
           }
         }
       }
@@ -116,6 +120,10 @@ export const createApp = () => {
       if (!isNonEmpty(request.body.displayName)) {
         reply.code(400);
         return { error: "displayName is required" };
+      }
+      if (!isNonEmpty(request.body.password) || request.body.password.length < 6) {
+        reply.code(400);
+        return { error: "password must be at least 6 characters" };
       }
       const displayName = request.body.displayName.trim();
       const existing = await findUserByDisplayName(displayName);
@@ -123,22 +131,23 @@ export const createApp = () => {
         reply.code(409);
         return { error: "displayName is already registered" };
       }
-      const user = await createUser(displayName);
+      const user = await createUser(displayName, hashPassword(request.body.password));
       const session = await createSession(user.id);
       reply.code(201);
       return { token: session.token, user };
     }
   );
 
-  app.post<{ Body: { displayName: string } }>(
+  app.post<{ Body: { displayName: string; password: string } }>(
     "/v1/auth/login",
     {
       schema: {
         body: {
           type: "object",
-          required: ["displayName"],
+          required: ["displayName", "password"],
           properties: {
-            displayName: { type: "string", minLength: 1 }
+            displayName: { type: "string", minLength: 1 },
+            password: { type: "string", minLength: 6 }
           }
         }
       }
@@ -148,12 +157,21 @@ export const createApp = () => {
         reply.code(400);
         return { error: "displayName is required" };
       }
-      const displayName = request.body.displayName.trim();
-      const user = await findUserByDisplayName(displayName);
-      if (!user) {
-        reply.code(404);
-        return { error: "User not found. Register first." };
+      if (!isNonEmpty(request.body.password) || request.body.password.length < 6) {
+        reply.code(400);
+        return { error: "password must be at least 6 characters" };
       }
+      const displayName = request.body.displayName.trim();
+      const credentials = await findUserCredentialsByDisplayName(displayName);
+      if (!credentials || !credentials.password_hash) {
+        reply.code(401);
+        return { error: "Invalid credentials" };
+      }
+      if (!verifyPassword(request.body.password, credentials.password_hash)) {
+        reply.code(401);
+        return { error: "Invalid credentials" };
+      }
+      const user = { id: credentials.id, displayName: credentials.display_name, createdAt: credentials.created_at };
       const session = await createSession(user.id);
       return { token: session.token, user };
     }
@@ -284,7 +302,15 @@ export const createApp = () => {
     Params: { clubId: string };
     Querystring: {
       status?: PendingChangeStatus;
-      entity?: "movie_watch" | "food_order" | "attendance" | "debt_settlement";
+      entity?:
+        | "movie_watch"
+        | "food_order"
+        | "attendance"
+        | "debt_settlement"
+        | "meeting_schedule"
+        | "meeting_update"
+        | "meeting_start"
+        | "meeting_complete";
       from?: string;
       to?: string;
       limit?: string;
@@ -299,7 +325,19 @@ export const createApp = () => {
           type: "object",
           properties: {
             status: { type: "string", enum: ["pending", "approved", "rejected"] },
-            entity: { type: "string", enum: ["movie_watch", "food_order", "attendance", "debt_settlement"] },
+            entity: {
+              type: "string",
+              enum: [
+                "movie_watch",
+                "food_order",
+                "attendance",
+                "debt_settlement",
+                "meeting_schedule",
+                "meeting_update",
+                "meeting_start",
+                "meeting_complete"
+              ]
+            },
             from: { type: "string", minLength: 1 },
             to: { type: "string", minLength: 1 },
             limit: { type: "string", pattern: "^[0-9]+$" },
@@ -463,7 +501,19 @@ export const createApp = () => {
           required: ["clubId", "entity", "payload"],
           properties: {
             clubId: { type: "string", minLength: 1 },
-            entity: { type: "string", enum: ["movie_watch", "food_order", "attendance", "debt_settlement"] },
+            entity: {
+              type: "string",
+              enum: [
+                "movie_watch",
+                "food_order",
+                "attendance",
+                "debt_settlement",
+                "meeting_schedule",
+                "meeting_update",
+                "meeting_start",
+                "meeting_complete"
+              ]
+            },
             payload: { type: "object" }
           }
         }
@@ -488,6 +538,33 @@ export const createApp = () => {
       if (!isValidPayloadForEntity(request.body.entity, request.body.payload)) {
         reply.code(400);
         return { error: "Invalid payload for selected entity" };
+      }
+      if (
+        request.body.entity === "movie_watch" ||
+        request.body.entity === "food_order" ||
+        request.body.entity === "attendance" ||
+        request.body.entity === "debt_settlement"
+      ) {
+        const candidate = request.body.payload as { meetingId?: unknown };
+        const meetingId = typeof candidate.meetingId === "string" ? candidate.meetingId.trim() : "";
+        const clubHasMeetings = await hasMeetingsForClub(request.body.clubId);
+        if (!meetingId && clubHasMeetings) {
+          reply.code(400);
+          return { error: "meetingId is required for record proposals" };
+        }
+        if (meetingId) {
+          const meetingValidation = await validateMeetingEditableForRecords(request.body.clubId, meetingId);
+          if ("error" in meetingValidation) {
+            reply.code(409);
+            return {
+              error:
+                meetingValidation.error === "meeting_not_started"
+                  ? "Meeting has not started yet"
+                  : "Meeting not found for this club",
+              code: meetingValidation.error
+            };
+          }
+        }
       }
       const created = await createProposedChange({
         clubId: request.body.clubId,
@@ -521,6 +598,7 @@ export const createApp = () => {
       totalCost: number;
       currency: string;
       payerUserId: string;
+      meetingId?: string;
       participantUserIds?: string[];
       participantShares?: Array<{ userId: string; amount: number }>;
     };
@@ -533,6 +611,7 @@ export const createApp = () => {
           required: ["clubId", "vendor", "totalCost", "currency", "payerUserId"],
           properties: {
             clubId: { type: "string", minLength: 1 },
+            meetingId: { type: "string", minLength: 1 },
             vendor: { type: "string", minLength: 1 },
             totalCost: { type: "number", minimum: 0 },
             currency: { type: "string", minLength: 1, maxLength: 8 },
@@ -575,6 +654,7 @@ export const createApp = () => {
         return { error: "Club not found" };
       }
       const foodOrderPayload = {
+        meetingId: request.body.meetingId?.trim(),
         vendor: request.body.vendor.trim(),
         totalCost: request.body.totalCost,
         currency: request.body.currency.trim().toUpperCase(),
@@ -585,6 +665,24 @@ export const createApp = () => {
       if (!isValidPayloadForEntity("food_order", foodOrderPayload)) {
         reply.code(400);
         return { error: "Invalid food order payload" };
+      }
+      const clubHasMeetings = await hasMeetingsForClub(request.body.clubId);
+      if (!foodOrderPayload.meetingId && clubHasMeetings) {
+        reply.code(400);
+        return { error: "meetingId is required for food orders once meetings exist" };
+      }
+      if (foodOrderPayload.meetingId) {
+        const meetingValidation = await validateMeetingEditableForRecords(request.body.clubId, foodOrderPayload.meetingId);
+        if ("error" in meetingValidation) {
+          reply.code(409);
+          return {
+            error:
+              meetingValidation.error === "meeting_not_started"
+                ? "Meeting has not started yet"
+                : "Meeting not found for this club",
+            code: meetingValidation.error
+          };
+        }
       }
       const created = await createProposedChange({
         clubId: request.body.clubId,
@@ -607,6 +705,31 @@ export const createApp = () => {
       }
       reply.code(201);
       return evaluated.data.proposal;
+    }
+  );
+
+  app.get<{ Params: { clubId: string }; Querystring: { currency?: string } }>(
+    "/v1/clubs/:clubId/meetings",
+    {
+      schema: {
+        params: clubIdParamsSchema
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Not a member of this club" };
+      }
+      const items = await listMeetingsForClub(request.params.clubId);
+      const active = items.find((item) => item.status === "active") ?? null;
+      const nextScheduled = items.find((item) => item.status === "scheduled") ?? null;
+      return { items, active, nextScheduled };
     }
   );
 

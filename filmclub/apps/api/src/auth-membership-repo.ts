@@ -8,6 +8,7 @@ interface DbClubRow {
   join_code: string;
   approval_mode: ApprovalPolicy["mode"];
   required_approvals: number | null;
+  timezone: string;
   created_by_user_id: string;
   created_at: string;
 }
@@ -23,6 +24,7 @@ interface DbMembershipRow {
 interface DbUserRow {
   id: string;
   display_name: string;
+  password_hash: string | null;
   created_at: string;
 }
 
@@ -48,6 +50,7 @@ const mapClub = (row: DbClubRow): Club => ({
     mode: row.approval_mode,
     requiredApprovals: row.required_approvals ?? undefined
   },
+  timezone: row.timezone,
   createdByUserId: row.created_by_user_id,
   createdAt: row.created_at
 });
@@ -63,24 +66,32 @@ const mapMembership = (row: DbMembershipRow): ClubMembership => ({
 const makeJoinCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const sessionTtlDays = Number(process.env.SESSION_TTL_DAYS ?? "30");
 
-export const createUser = async (displayName: string) => {
+export const createUser = async (displayName: string, passwordHash: string) => {
   const createdAt = new Date().toISOString();
   const id = randomUUID();
   const query = `
-    INSERT INTO users (id, display_name, created_at)
-    VALUES ($1, $2, $3)
-    RETURNING id, display_name, created_at
+    INSERT INTO users (id, display_name, password_hash, created_at)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, display_name, password_hash, created_at
   `;
-  const result = await pool.query<DbUserRow>(query, [id, displayName, createdAt]);
+  const result = await pool.query<DbUserRow>(query, [id, displayName, passwordHash, createdAt]);
   return mapUser(result.rows[0]);
 };
 
 export const findUserByDisplayName = async (displayName: string) => {
   const result = await pool.query<DbUserRow>(
-    `SELECT id, display_name, created_at FROM users WHERE lower(display_name) = lower($1)`,
+    `SELECT id, display_name, password_hash, created_at FROM users WHERE lower(display_name) = lower($1)`,
     [displayName]
   );
   return result.rows[0] ? mapUser(result.rows[0]) : null;
+};
+
+export const findUserCredentialsByDisplayName = async (displayName: string) => {
+  const result = await pool.query<DbUserRow>(
+    `SELECT id, display_name, password_hash, created_at FROM users WHERE lower(display_name) = lower($1)`,
+    [displayName]
+  );
+  return result.rows[0] ?? null;
 };
 
 export const createSession = async (userId: string) => {
@@ -99,7 +110,7 @@ export const createSession = async (userId: string) => {
 
 export const findUserBySessionToken = async (token: string) => {
   const query = `
-    SELECT u.id, u.display_name, u.created_at
+    SELECT u.id, u.display_name, u.password_hash, u.created_at
     FROM sessions s
     INNER JOIN users u ON u.id = s.user_id
     WHERE s.token = $1
@@ -125,10 +136,10 @@ export const createClubForUser = async (name: string, policy: ApprovalPolicy, ow
       const clubResult = await client.query<DbClubRow>(
         `
         INSERT INTO clubs (
-          id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+          id, name, join_code, approval_mode, required_approvals, timezone, created_by_user_id, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+        VALUES ($1, $2, $3, $4, $5, 'Europe/Berlin', $6, $7)
+        RETURNING id, name, join_code, approval_mode, required_approvals, timezone, created_by_user_id, created_at
         `,
         [id, name, joinCode, policy.mode, policy.requiredApprovals ?? null, ownerUserId, createdAt]
       );
@@ -162,6 +173,7 @@ export const findClubByJoinCode = async (joinCode: string) => {
   const result = await pool.query<DbClubRow>(
     `
     SELECT id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+    , timezone
     FROM clubs
     WHERE join_code = $1
     `,
@@ -174,6 +186,7 @@ export const findClubById = async (clubId: string) => {
   const result = await pool.query<DbClubRow>(
     `
     SELECT id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+    , timezone
     FROM clubs
     WHERE id = $1
     `,
@@ -188,7 +201,7 @@ export const updateClubApprovalPolicy = async (clubId: string, policy: ApprovalP
     UPDATE clubs
     SET approval_mode = $2, required_approvals = $3
     WHERE id = $1
-    RETURNING id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+    RETURNING id, name, join_code, approval_mode, required_approvals, timezone, created_by_user_id, created_at
     `,
     [clubId, policy.mode, policy.requiredApprovals ?? null]
   );
@@ -246,6 +259,7 @@ export const listClubsForUser = async (userId: string) => {
       c.join_code,
       c.approval_mode,
       c.required_approvals,
+      c.timezone,
       c.created_by_user_id,
       c.created_at,
       m.id AS membership_id,

@@ -97,3 +97,6 @@
 13. Added self-host Windows + Cloudflare tunnel docs and automation scripts.
 14. Added payment reminder API (`POST/GET /v1/clubs/:clubId/payment-reminders`) with persistence and guardrails.
 15. Added payment reminder UI actions from debt matrix plus reminder audit log panel.
+16. Added password-based auth (register/login) with minimum length 6.
+17. Added meeting domain (`meetings`) and trust-confirmed meeting lifecycle proposals.
+18. Added meeting-aware validation for record proposals/food orders once meetings exist.

@@ -59,6 +59,7 @@ Write-Host "3) Register first user..."
 $aliceName = New-RandomName "smoke-alice"
 $alice = Invoke-FilmclubRequest -Method "POST" -Url "$ApiBaseUrl/v1/auth/register" -Body @{
   displayName = $aliceName
+  password = "smoke-pass-1"
 }
 $aliceToken = $alice.token
 $aliceHeaders = @{ Authorization = "Bearer $aliceToken" }
@@ -67,6 +68,7 @@ Write-Host "4) Register second user..."
 $bobName = New-RandomName "smoke-bob"
 $bob = Invoke-FilmclubRequest -Method "POST" -Url "$ApiBaseUrl/v1/auth/register" -Body @{
   displayName = $bobName
+  password = "smoke-pass-1"
 }
 $bobToken = $bob.token
 $bobHeaders = @{ Authorization = "Bearer $bobToken" }

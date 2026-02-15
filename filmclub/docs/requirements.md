@@ -26,6 +26,12 @@ Filmclub is a web companion app for a recurring in-person movie-night group.
    - `unanimous`
    - `majority`
    - `fixed` number of approvals from 1..n
+11. Auth must require a password; display-name-only login is not allowed.
+12. Password policy requires minimum length of 6 characters.
+13. Clubs must support meeting/evening lifecycle tracking with default timezone `Europe/Berlin`.
+14. Meeting lifecycle changes (schedule/update/start/complete) must be trust-confirmed via proposals.
+15. Record changes (movie watched, food orders, attendance, debt settlement) must be tied to meeting context once meetings exist for the club.
+16. Only one active meeting may exist per club at a time.
 
 ## Non-functional requirements
 1. The app must be available on the web and deployable under the spoon.studio domain.
@@ -47,3 +53,5 @@ Filmclub is a web companion app for a recurring in-person movie-night group.
    - A creditor can send a reminder to a debtor for an outstanding directed balance.
    - Reminder creation does not mutate ledger balances.
    - Reminder entries are persisted and queryable per club.
+2. Auth now requires password-based register/login.
+3. Meeting proposals and meeting-aware record validation are implemented.

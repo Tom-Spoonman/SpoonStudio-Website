@@ -1,4 +1,12 @@
-export type RecordEntity = "movie_watch" | "food_order" | "attendance" | "debt_settlement";
+export type RecordEntity =
+  | "movie_watch"
+  | "food_order"
+  | "attendance"
+  | "debt_settlement"
+  | "meeting_schedule"
+  | "meeting_update"
+  | "meeting_start"
+  | "meeting_complete";
 
 export type PendingChangeStatus = "pending" | "approved" | "rejected";
 export type ChangeVoteDecision = "approve" | "reject";
@@ -21,6 +29,7 @@ export interface Club {
   name: string;
   joinCode: string;
   approvalPolicy: ApprovalPolicy;
+  timezone: string;
   createdByUserId: string;
   createdAt: string;
 }
@@ -65,6 +74,7 @@ export interface FoodOrderShare {
 }
 
 export interface FoodOrderPayload {
+  meetingId?: string;
   vendor: string;
   totalCost: number;
   currency: string;
@@ -74,9 +84,29 @@ export interface FoodOrderPayload {
 }
 
 export interface DebtSettlementPayload {
+  meetingId?: string;
   fromUserId: string;
   toUserId: string;
   amount: number;
   currency: string;
   note?: string;
+}
+
+export interface MeetingSchedulePayload {
+  scheduledDate: string;
+  title?: string;
+}
+
+export interface MeetingUpdatePayload {
+  meetingId: string;
+  scheduledDate?: string;
+  title?: string;
+}
+
+export interface MeetingStartPayload {
+  meetingId: string;
+}
+
+export interface MeetingCompletePayload {
+  meetingId: string;
 }

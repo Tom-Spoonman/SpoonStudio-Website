@@ -1,6 +1,14 @@
 export type ApprovalMode = "unanimous" | "majority" | "fixed";
 export type PendingChangeStatus = "pending" | "approved" | "rejected";
-export type RecordEntity = "movie_watch" | "food_order" | "attendance" | "debt_settlement";
+export type RecordEntity =
+  | "movie_watch"
+  | "food_order"
+  | "attendance"
+  | "debt_settlement"
+  | "meeting_schedule"
+  | "meeting_update"
+  | "meeting_start"
+  | "meeting_complete";
 
 export interface ApprovalPolicy {
   mode: ApprovalMode;
@@ -18,6 +26,7 @@ export interface Club {
   name: string;
   joinCode: string;
   approvalPolicy: ApprovalPolicy;
+  timezone: string;
   createdByUserId: string;
   createdAt: string;
 }
@@ -111,6 +120,19 @@ export interface PaymentReminderPage {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface ClubMeeting {
+  id: string;
+  clubId: string;
+  title?: string;
+  scheduledDate: string;
+  status: "scheduled" | "active" | "completed";
+  startedAt?: string;
+  completedAt?: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ClubHistoryItem {

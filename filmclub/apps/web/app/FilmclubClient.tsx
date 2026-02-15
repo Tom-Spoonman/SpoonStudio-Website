@@ -15,6 +15,7 @@ import type {
   ClubDebtMatrixRow,
   ClubHistoryPage,
   ClubListItem,
+  ClubMeeting,
   ClubMember,
   MeResponse,
   PendingChangeStatus,
@@ -61,6 +62,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const [busy, setBusy] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"register" | "login">("register");
   const [clubName, setClubName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -80,6 +82,10 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
   const [debtToUserId, setDebtToUserId] = useState("");
   const [debtAmount, setDebtAmount] = useState("0");
   const [debtCurrency, setDebtCurrency] = useState("EUR");
+  const [meetings, setMeetings] = useState<ClubMeeting[]>([]);
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingDate, setMeetingDate] = useState("");
+  const [selectedMeetingId, setSelectedMeetingId] = useState("");
   const [orderVendor, setOrderVendor] = useState("");
   const [orderTotalCost, setOrderTotalCost] = useState("0");
   const [orderCurrency, setOrderCurrency] = useState("EUR");
@@ -279,6 +285,31 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     setDebtMatrix(data.matrix);
   };
 
+  const loadMeetings = async () => {
+    if (!token || !activeClubId) {
+      setMeetings([]);
+      setSelectedMeetingId("");
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/meetings`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as { items: ClubMeeting[] };
+    setMeetings(data.items);
+    const preferred =
+      data.items.find((item) => item.status === "active") ??
+      data.items.find((item) => item.status === "completed") ??
+      data.items[0];
+    const selectedStillExists = data.items.some((item) => item.id === selectedMeetingId);
+    if (preferred && (!selectedMeetingId || !selectedStillExists)) {
+      setSelectedMeetingId(preferred.id);
+    }
+  };
+
   const loadPaymentReminders = async () => {
     if (!token || !activeClubId) {
       setPaymentReminders([]);
@@ -333,6 +364,10 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
   useEffect(() => {
     loadBalances();
+  }, [token, activeClubId]);
+
+  useEffect(() => {
+    loadMeetings();
   }, [token, activeClubId]);
 
   useEffect(() => {
@@ -419,12 +454,16 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       setMessage("Display name is required.");
       return;
     }
+    if (password.trim().length < 6) {
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     const response = await fetch(`${apiBase}/v1/auth/${authMode}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: displayName.trim() })
+      body: JSON.stringify({ displayName: displayName.trim(), password: password.trim() })
     });
     const data = (await response.json()) as { token?: string; error?: string };
     setBusy(false);
@@ -435,6 +474,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     setToken(data.token);
     localStorage.setItem(tokenStorageKey, data.token);
     setDisplayName("");
+    setPassword("");
     setMessage(`${authMode} successful`);
   };
 
@@ -596,6 +636,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
         return;
       }
       payload = {
+        meetingId: selectedMeetingId || undefined,
         title: movieTitle.trim(),
         watchedOn: movieWatchedOn.trim()
       };
@@ -610,6 +651,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
         return;
       }
       payload = {
+        meetingId: selectedMeetingId || undefined,
         vendor: foodVendor.trim(),
         totalCost,
         currency: foodCurrency.trim().toUpperCase()
@@ -625,7 +667,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
         setMessage("Select at least one attendee.");
         return;
       }
-      payload = { attendees };
+      payload = { meetingId: selectedMeetingId || undefined, attendees };
     } else if (proposalEntity === "debt_settlement") {
       if (!debtFromUserId.trim() || !debtToUserId.trim()) {
         setMessage("From/To members are required.");
@@ -641,6 +683,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
         return;
       }
       payload = {
+        meetingId: selectedMeetingId || undefined,
         fromUserId: debtFromUserId.trim(),
         toUserId: debtToUserId.trim(),
         amount,
@@ -684,6 +727,8 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     setMessage(`Vote submitted: ${decision}`);
     await loadProposals();
     await loadProposalDetails(proposalId);
+    await loadMeetings();
+    await loadBalances();
   };
 
   const sendPaymentReminder = async (row: ClubDebtMatrixRow) => {
@@ -715,6 +760,65 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
     const currency = data.reminder?.currency ?? row.currency;
     setMessage(`Reminder sent to ${row.fromDisplayName} for ${amount.toFixed(2)} ${currency}.`);
     await loadPaymentReminders();
+  };
+
+  const proposeMeetingSchedule = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeClubId) {
+      setMessage("Select a club first.");
+      return;
+    }
+    if (!meetingDate.trim()) {
+      setMessage("Meeting date is required.");
+      return;
+    }
+    setBusy(true);
+    const response = await fetch(`${apiBase}/v1/proposed-changes`, {
+      method: "POST",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clubId: activeClubId,
+        entity: "meeting_schedule",
+        payload: { scheduledDate: meetingDate.trim(), title: meetingTitle.trim() || undefined }
+      })
+    });
+    const data = (await response.json()) as { error?: string };
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(data.error ?? "Failed to propose meeting.");
+      return;
+    }
+    setMessage("Meeting schedule proposal submitted.");
+    await loadProposals();
+  };
+
+  const proposeMeetingStatusChange = async (entity: "meeting_start" | "meeting_complete") => {
+    if (!activeClubId || !selectedMeetingId) {
+      setMessage("Select a meeting first.");
+      return;
+    }
+    setBusy(true);
+    const response = await fetch(`${apiBase}/v1/proposed-changes`, {
+      method: "POST",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clubId: activeClubId,
+        entity,
+        payload: { meetingId: selectedMeetingId }
+      })
+    });
+    const data = (await response.json()) as { error?: string };
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(data.error ?? "Failed to submit meeting proposal.");
+      return;
+    }
+    setMessage(
+      entity === "meeting_start"
+        ? "Meeting start proposal submitted."
+        : "Meeting complete proposal submitted."
+    );
+    await loadProposals();
   };
 
   const submitFoodOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -764,6 +868,7 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
       headers: { ...authHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({
         clubId: activeClubId,
+        meetingId: selectedMeetingId || undefined,
         vendor: orderVendor.trim(),
         totalCost,
         currency: orderCurrency.trim().toUpperCase(),
@@ -823,6 +928,12 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
               placeholder="Display name"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
+            />
+            <input
+              type="password"
+              placeholder="Password (min 6 chars)"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
             />
             <div className="row">
               <button type="submit" disabled={busy} onClick={() => setAuthMode("register")}>Register</button>
@@ -921,8 +1032,55 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
 
               {showOverviewPanels && (
                 <div className="card">
+                <h2>Meetings</h2>
+                <form onSubmit={proposeMeetingSchedule} className="stack">
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(event) => setMeetingDate(event.target.value)}
+                  />
+                  <input
+                    placeholder="Meeting title (optional)"
+                    value={meetingTitle}
+                    onChange={(event) => setMeetingTitle(event.target.value)}
+                  />
+                  <button type="submit" disabled={busy}>Propose Meeting Schedule</button>
+                </form>
+                <h3>Existing meetings</h3>
+                {meetings.length === 0 && <p>No meetings yet.</p>}
+                {meetings.length > 0 && (
+                  <select value={selectedMeetingId} onChange={(event) => setSelectedMeetingId(event.target.value)}>
+                    {meetings.map((meeting) => (
+                      <option key={meeting.id} value={meeting.id}>
+                        {meeting.scheduledDate} [{meeting.status}] {meeting.title ?? ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="row">
+                  <button type="button" onClick={() => proposeMeetingStatusChange("meeting_start")} disabled={busy || !selectedMeetingId}>
+                    Propose Start Meeting
+                  </button>
+                  <button type="button" onClick={() => proposeMeetingStatusChange("meeting_complete")} disabled={busy || !selectedMeetingId}>
+                    Propose Complete Meeting
+                  </button>
+                </div>
+                </div>
+              )}
+
+              {showOverviewPanels && (
+                <div className="card">
                 <h2>Create Proposal</h2>
                 <form onSubmit={submitProposal} className="stack">
+                  <label>Meeting context (required once meetings exist)</label>
+                  <select value={selectedMeetingId} onChange={(event) => setSelectedMeetingId(event.target.value)}>
+                    <option value="">None</option>
+                    {meetings.map((meeting) => (
+                      <option key={`proposal-meeting-${meeting.id}`} value={meeting.id}>
+                        {meeting.scheduledDate} [{meeting.status}] {meeting.title ?? ""}
+                      </option>
+                    ))}
+                  </select>
                   <select
                     value={proposalEntity}
                     onChange={(event) => {
@@ -1034,6 +1192,15 @@ export default function FilmclubClient({ view = "club", routeClubId }: FilmclubC
                 <div className="card">
                 <h2>Food Order + Balances</h2>
                 <form onSubmit={submitFoodOrder} className="stack">
+                  <label>Meeting context (required once meetings exist)</label>
+                  <select value={selectedMeetingId} onChange={(event) => setSelectedMeetingId(event.target.value)}>
+                    <option value="">None</option>
+                    {meetings.map((meeting) => (
+                      <option key={`order-meeting-${meeting.id}`} value={meeting.id}>
+                        {meeting.scheduledDate} [{meeting.status}] {meeting.title ?? ""}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     placeholder="Vendor"
                     value={orderVendor}

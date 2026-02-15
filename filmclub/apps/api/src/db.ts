@@ -34,8 +34,14 @@ export const runMigrations = async () => {
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
       display_name TEXT NOT NULL UNIQUE,
+      password_hash TEXT,
       created_at TIMESTAMPTZ NOT NULL
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS password_hash TEXT;
   `);
 
   await pool.query(`
@@ -70,9 +76,15 @@ export const runMigrations = async () => {
       join_code TEXT NOT NULL UNIQUE,
       approval_mode TEXT NOT NULL CHECK (approval_mode IN ('unanimous', 'majority', 'fixed')),
       required_approvals INTEGER,
+      timezone TEXT NOT NULL DEFAULT 'Europe/Berlin',
       created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       created_at TIMESTAMPTZ NOT NULL
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE clubs
+    ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Europe/Berlin';
   `);
 
   await pool.query(`
@@ -90,12 +102,43 @@ export const runMigrations = async () => {
     CREATE TABLE IF NOT EXISTS proposed_changes (
       id UUID PRIMARY KEY,
       club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-      entity TEXT NOT NULL CHECK (entity IN ('movie_watch', 'food_order', 'attendance', 'debt_settlement')),
+      entity TEXT NOT NULL CHECK (
+        entity IN (
+          'movie_watch',
+          'food_order',
+          'attendance',
+          'debt_settlement',
+          'meeting_schedule',
+          'meeting_update',
+          'meeting_start',
+          'meeting_complete'
+        )
+      ),
       payload JSONB NOT NULL,
       proposer_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
       created_at TIMESTAMPTZ NOT NULL,
       resolved_at TIMESTAMPTZ
+    );
+  `);
+
+  await pool.query(`
+    ALTER TABLE proposed_changes
+    DROP CONSTRAINT IF EXISTS proposed_changes_entity_check;
+  `);
+  await pool.query(`
+    ALTER TABLE proposed_changes
+    ADD CONSTRAINT proposed_changes_entity_check CHECK (
+      entity IN (
+        'movie_watch',
+        'food_order',
+        'attendance',
+        'debt_settlement',
+        'meeting_schedule',
+        'meeting_update',
+        'meeting_start',
+        'meeting_complete'
+      )
     );
   `);
 
@@ -197,5 +240,25 @@ export const runMigrations = async () => {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_payment_reminders_club_created_at
     ON payment_reminders (club_id, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS meetings (
+      id UUID PRIMARY KEY,
+      club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      title TEXT,
+      scheduled_date DATE NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('scheduled', 'active', 'completed')),
+      started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_meetings_club_scheduled_date
+    ON meetings (club_id, scheduled_date DESC);
   `);
 };

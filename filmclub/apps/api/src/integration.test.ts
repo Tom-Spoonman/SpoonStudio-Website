@@ -6,6 +6,8 @@ import { pool, runMigrations } from "./db.js";
 const resetDatabase = async () => {
   await pool.query(`
     TRUNCATE TABLE
+      payment_reminders,
+      meetings,
       committed_change_logs,
       change_votes,
       proposed_changes,
@@ -23,7 +25,7 @@ const register = async (app: ReturnType<typeof createApp>, displayName: string) 
   const response = await app.inject({
     method: "POST",
     url: "/v1/auth/register",
-    payload: { displayName }
+    payload: { displayName, password: "test-pass-1" }
   });
   assert.equal(response.statusCode, 201);
   const body = response.json() as { token: string; user: { id: string } };
@@ -163,6 +165,30 @@ test("auth + membership flow creates and joins club", async () => {
     assert.equal(membersResponse.statusCode, 200);
     const members = membersResponse.json() as Array<{ user: { id: string } }>;
     assert.equal(members.length, 2);
+  } finally {
+    await app.close();
+  }
+});
+
+test("login requires correct password", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const displayName = uniqueName("alice");
+    await register(app, displayName);
+    const wrongPassword = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: { displayName, password: "wrong-password" }
+    });
+    assert.equal(wrongPassword.statusCode, 401);
+
+    const correctPassword = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: { displayName, password: "test-pass-1" }
+    });
+    assert.equal(correctPassword.statusCode, 200);
   } finally {
     await app.close();
   }
@@ -362,6 +388,103 @@ test("fixed policy can reject immediately when requirement is impossible", async
 
     const proposal = await createProposal(app, alice.token, club.club.id);
     assert.equal(proposal.status, "rejected");
+  } finally {
+    await app.close();
+  }
+});
+
+test("meeting proposals gate record edits by meeting state", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "Meeting Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    await joinClub(app, bob.token, club.club.joinCode);
+
+    const scheduleFuture = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "meeting_schedule",
+        payload: { scheduledDate: "2099-01-01", title: "Future Evening" }
+      }
+    });
+    assert.equal(scheduleFuture.statusCode, 201);
+    const futureProposal = scheduleFuture.json() as { id: string };
+    const approveFuture = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${futureProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` },
+      payload: {}
+    });
+    assert.equal(approveFuture.statusCode, 200);
+
+    const meetingsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/meetings`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(meetingsResponse.statusCode, 200);
+    const meetingsData = meetingsResponse.json() as { items: Array<{ id: string; status: string }> };
+    const futureMeeting = meetingsData.items.find((item) => item.status === "scheduled");
+    assert.ok(futureMeeting);
+
+    const blockedProposal = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "movie_watch",
+        payload: { meetingId: futureMeeting?.id, title: "Blocked Movie", watchedOn: "2026-02-15" }
+      }
+    });
+    assert.equal(blockedProposal.statusCode, 409);
+
+    const scheduleToday = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "meeting_schedule",
+        payload: { scheduledDate: "2026-02-15", title: "Today Evening" }
+      }
+    });
+    assert.equal(scheduleToday.statusCode, 201);
+    const todayProposal = scheduleToday.json() as { id: string };
+    const approveToday = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${todayProposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` },
+      payload: {}
+    });
+    assert.equal(approveToday.statusCode, 200);
+
+    const meetingsTodayResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/meetings`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(meetingsTodayResponse.statusCode, 200);
+    const meetingsToday = meetingsTodayResponse.json() as { items: Array<{ id: string; status: string }> };
+    const activeMeeting = meetingsToday.items.find((item) => item.status === "active");
+    assert.ok(activeMeeting);
+
+    const allowedProposal = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "movie_watch",
+        payload: { meetingId: activeMeeting?.id, title: "Allowed Movie", watchedOn: "2026-02-15" }
+      }
+    });
+    assert.equal(allowedProposal.statusCode, 201);
   } finally {
     await app.close();
   }

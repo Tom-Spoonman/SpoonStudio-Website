@@ -1,4 +1,12 @@
-import type { DebtSettlementPayload, FoodOrderPayload, RecordEntity } from "@filmclub/shared";
+import type {
+  DebtSettlementPayload,
+  FoodOrderPayload,
+  MeetingCompletePayload,
+  MeetingSchedulePayload,
+  MeetingStartPayload,
+  MeetingUpdatePayload,
+  RecordEntity
+} from "@filmclub/shared";
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -101,6 +109,56 @@ const validateFoodOrderPayload = (payload: unknown): payload is FoodOrderPayload
   return Array.isArray(candidate.participantUserIds) || Array.isArray(candidate.participantShares);
 };
 
+const validateMeetingSchedulePayload = (payload: unknown): payload is MeetingSchedulePayload => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const candidate = payload as Partial<MeetingSchedulePayload>;
+  if (!isNonEmptyString(candidate.scheduledDate)) {
+    return false;
+  }
+  if (candidate.title !== undefined && typeof candidate.title !== "string") {
+    return false;
+  }
+  return true;
+};
+
+const validateMeetingUpdatePayload = (payload: unknown): payload is MeetingUpdatePayload => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const candidate = payload as Partial<MeetingUpdatePayload>;
+  if (!isNonEmptyString(candidate.meetingId)) {
+    return false;
+  }
+  if (candidate.scheduledDate === undefined && candidate.title === undefined) {
+    return false;
+  }
+  if (candidate.scheduledDate !== undefined && !isNonEmptyString(candidate.scheduledDate)) {
+    return false;
+  }
+  if (candidate.title !== undefined && typeof candidate.title !== "string") {
+    return false;
+  }
+  return true;
+};
+
+const validateMeetingStartPayload = (payload: unknown): payload is MeetingStartPayload => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const candidate = payload as Partial<MeetingStartPayload>;
+  return isNonEmptyString(candidate.meetingId);
+};
+
+const validateMeetingCompletePayload = (payload: unknown): payload is MeetingCompletePayload => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const candidate = payload as Partial<MeetingCompletePayload>;
+  return isNonEmptyString(candidate.meetingId);
+};
+
 export const isValidPayloadForEntity = (entity: RecordEntity, payload: unknown) => {
   if (entity === "movie_watch") {
     return validateMovieWatchPayload(payload);
@@ -113,6 +171,18 @@ export const isValidPayloadForEntity = (entity: RecordEntity, payload: unknown) 
   }
   if (entity === "food_order") {
     return validateFoodOrderPayload(payload);
+  }
+  if (entity === "meeting_schedule") {
+    return validateMeetingSchedulePayload(payload);
+  }
+  if (entity === "meeting_update") {
+    return validateMeetingUpdatePayload(payload);
+  }
+  if (entity === "meeting_start") {
+    return validateMeetingStartPayload(payload);
+  }
+  if (entity === "meeting_complete") {
+    return validateMeetingCompletePayload(payload);
   }
   return false;
 };

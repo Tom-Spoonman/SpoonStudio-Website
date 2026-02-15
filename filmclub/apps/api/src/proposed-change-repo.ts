@@ -10,6 +10,12 @@ import type {
 } from "@filmclub/shared";
 import { pool } from "./db.js";
 import { applyApprovedDebtSettlementProposal, applyApprovedFoodOrderProposal } from "./ledger-repo.js";
+import {
+  applyMeetingCompleteProposal,
+  applyMeetingScheduleProposal,
+  applyMeetingStartProposal,
+  applyMeetingUpdateProposal
+} from "./meeting-repo.js";
 
 interface DbProposedChangeRow {
   id: string;
@@ -110,6 +116,43 @@ const applyProposalSideEffects = async (
       proposalId: params.proposal.id,
       clubId: params.proposal.clubId,
       proposerUserId: params.proposal.proposerUserId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  if (params.proposal.entity === "meeting_schedule") {
+    const applied = await applyMeetingScheduleProposal(client, {
+      clubId: params.proposal.clubId,
+      proposerUserId: params.proposal.proposerUserId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  if (params.proposal.entity === "meeting_update") {
+    const applied = await applyMeetingUpdateProposal(client, {
+      clubId: params.proposal.clubId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  if (params.proposal.entity === "meeting_start") {
+    const applied = await applyMeetingStartProposal(client, {
+      clubId: params.proposal.clubId,
+      payload: params.proposal.payload
+    });
+    if ("error" in applied) {
+      return applied;
+    }
+  }
+  if (params.proposal.entity === "meeting_complete") {
+    const applied = await applyMeetingCompleteProposal(client, {
+      clubId: params.proposal.clubId,
       payload: params.proposal.payload
     });
     if ("error" in applied) {

@@ -56,6 +56,10 @@ export default function HistoryCard(props: HistoryCardProps) {
             <option value="food_order">food_order</option>
             <option value="attendance">attendance</option>
             <option value="debt_settlement">debt_settlement</option>
+            <option value="meeting_schedule">meeting_schedule</option>
+            <option value="meeting_update">meeting_update</option>
+            <option value="meeting_start">meeting_start</option>
+            <option value="meeting_complete">meeting_complete</option>
           </select>
         </div>
       </div>
