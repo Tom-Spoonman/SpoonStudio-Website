@@ -18,6 +18,7 @@ Behavior:
 2. API calls include `Authorization: Bearer <token>`.
 3. Club context is selected from "My Clubs".
 4. Proposal creation now uses typed form inputs per entity type.
+5. Logout triggers server-side session invalidation (`POST /v1/auth/logout`) before local token cleanup.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.

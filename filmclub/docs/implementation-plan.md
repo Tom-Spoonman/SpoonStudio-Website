@@ -55,3 +55,4 @@
 4. Replaced raw JSON proposal editor with typed per-entity form inputs.
 5. Replaced debt-settlement user-id inputs with club-member selectors.
 6. Replaced attendance free-text names with club-member multi-select.
+7. Added logout endpoint and server-side session invalidation.

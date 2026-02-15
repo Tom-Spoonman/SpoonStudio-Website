@@ -6,6 +6,7 @@ import {
   createClubForUser,
   createSession,
   createUser,
+  deleteSessionByToken,
   findClubById,
   findClubByJoinCode,
   findUserByDisplayName,
@@ -107,6 +108,16 @@ app.post<{ Body: { displayName: string } }>("/v1/auth/login", async (request, re
   }
   const session = await createSession(user.id);
   return { token: session.token, user };
+});
+
+app.post("/v1/auth/logout", async (request, reply) => {
+  const token = getTokenFromAuthHeader(request.headers.authorization);
+  if (!token) {
+    reply.code(401);
+    return { error: "Unauthorized" };
+  }
+  await deleteSessionByToken(token);
+  return { ok: true };
 });
 
 app.get("/v1/me", async (request, reply) => {

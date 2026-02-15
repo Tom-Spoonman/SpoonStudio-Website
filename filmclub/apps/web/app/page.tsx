@@ -276,10 +276,21 @@ export default function HomePage() {
     setMessage(`${authMode} successful`);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (token) {
+      try {
+        await fetch(`${apiBase}/v1/auth/logout`, {
+          method: "POST",
+          headers: authHeaders
+        });
+      } catch {
+        // Best-effort server logout; local session is always cleared.
+      }
+    }
     setToken("");
     setMe(null);
     setClubs([]);
+    setClubMembers([]);
     setActiveClubId("");
     setProposals([]);
     setSelectedProposal(null);

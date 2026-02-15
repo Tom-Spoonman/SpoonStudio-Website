@@ -32,8 +32,25 @@ export const runMigrations = async () => {
     CREATE TABLE IF NOT EXISTS sessions (
       token UUID PRIMARY KEY,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at TIMESTAMPTZ NOT NULL
+      created_at TIMESTAMPTZ NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE sessions
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+  `);
+
+  await pool.query(`
+    UPDATE sessions
+    SET expires_at = created_at + INTERVAL '30 days'
+    WHERE expires_at IS NULL;
+  `);
+
+  await pool.query(`
+    ALTER TABLE sessions
+    ALTER COLUMN expires_at SET NOT NULL;
   `);
 
   await pool.query(`

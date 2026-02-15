@@ -61,6 +61,7 @@ const mapMembership = (row: DbMembershipRow): ClubMembership => ({
 });
 
 const makeJoinCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const sessionTtlDays = Number(process.env.SESSION_TTL_DAYS ?? "30");
 
 export const createUser = async (displayName: string) => {
   const createdAt = new Date().toISOString();
@@ -85,12 +86,15 @@ export const findUserByDisplayName = async (displayName: string) => {
 export const createSession = async (userId: string) => {
   const token = randomUUID();
   const createdAt = new Date().toISOString();
-  await pool.query(`INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, $3)`, [
+  const ttlMs = Math.max(1, sessionTtlDays) * 24 * 60 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+  await pool.query(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES ($1, $2, $3, $4)`, [
     token,
     userId,
-    createdAt
+    createdAt,
+    expiresAt
   ]);
-  return { token, createdAt };
+  return { token, createdAt, expiresAt };
 };
 
 export const findUserBySessionToken = async (token: string) => {
@@ -99,9 +103,14 @@ export const findUserBySessionToken = async (token: string) => {
     FROM sessions s
     INNER JOIN users u ON u.id = s.user_id
     WHERE s.token = $1
+      AND s.expires_at > NOW()
   `;
   const result = await pool.query<DbUserRow>(query, [token]);
   return result.rows[0] ? mapUser(result.rows[0]) : null;
+};
+
+export const deleteSessionByToken = async (token: string) => {
+  await pool.query(`DELETE FROM sessions WHERE token = $1`, [token]);
 };
 
 export const createClubForUser = async (name: string, policy: ApprovalPolicy, ownerUserId: string) => {

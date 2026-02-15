@@ -7,6 +7,7 @@ This documents the first working slice for authentication and multi-club members
 2. API startup runs idempotent table migrations in `apps/api/src/db.ts`.
 3. Auth is bearer token session auth intended for development speed.
 4. Trust-confirmation persistence is documented separately in `docs/trust-confirmation.md`.
+5. Sessions have expiration (`SESSION_TTL_DAYS`, default `30`).
 
 ## Endpoints
 
@@ -44,6 +45,12 @@ Body:
 
 ### Who am I
 `GET /v1/me`
+
+Header:
+`Authorization: Bearer <token>`
+
+### Logout
+`POST /v1/auth/logout`
 
 Header:
 `Authorization: Bearer <token>`
