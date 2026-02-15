@@ -161,11 +161,10 @@ test("club owner can update approval policy", async () => {
     const alice = await register(app, uniqueName("alice"));
     const createdClub = await createClub(app, alice.token, "Settings Club", { mode: "majority" });
     const updated = await updateClubApprovalPolicy(app, alice.token, createdClub.club.id, {
-      mode: "fixed",
-      requiredApprovals: 2
+      mode: "unanimous"
     });
-    assert.equal(updated.club.approvalPolicy.mode, "fixed");
-    assert.equal(updated.club.approvalPolicy.requiredApprovals, 2);
+    assert.equal(updated.club.approvalPolicy.mode, "unanimous");
+    assert.equal(updated.club.approvalPolicy.requiredApprovals, undefined);
   } finally {
     await app.close();
   }
