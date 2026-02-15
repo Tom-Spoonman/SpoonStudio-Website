@@ -55,7 +55,8 @@ if (-not $SkipCloudflaredCheck) {
 }
 foreach ($commandName in $requiredCommands) {
   $cmd = Get-Command $commandName -ErrorAction SilentlyContinue
-  Add-Result $results "Command '$commandName' in PATH" ($null -ne $cmd) (if ($cmd) { "ok" } else { "missing" })
+  $message = if ($cmd) { "ok" } else { "missing" }
+  Add-Result $results "Command '$commandName' in PATH" ($null -ne $cmd) $message
 }
 
 $nodeVersionRaw = ""
@@ -76,8 +77,12 @@ try {
 
 $apiEnv = Join-Path $repoRoot "apps\api\.env.production"
 $webEnv = Join-Path $repoRoot "apps\web\.env.production"
-Add-Result $results "File exists apps/api/.env.production" (Test-Path $apiEnv) (if (Test-Path $apiEnv) { "ok" } else { "missing" })
-Add-Result $results "File exists apps/web/.env.production" (Test-Path $webEnv) (if (Test-Path $webEnv) { "ok" } else { "missing" })
+$apiEnvExists = Test-Path $apiEnv
+$webEnvExists = Test-Path $webEnv
+$apiEnvMessage = if ($apiEnvExists) { "ok" } else { "missing" }
+$webEnvMessage = if ($webEnvExists) { "ok" } else { "missing" }
+Add-Result $results "File exists apps/api/.env.production" $apiEnvExists $apiEnvMessage
+Add-Result $results "File exists apps/web/.env.production" $webEnvExists $webEnvMessage
 
 $mergedEnv = Get-EnvMap @(
   (Join-Path $repoRoot ".env"),
@@ -91,13 +96,17 @@ $requiredEnvVars = @(
   "DATABASE_URL",
   "CORS_ORIGIN",
   "API_PORT",
-  "SESSION_TTL_DAYS",
   "NEXT_PUBLIC_API_BASE_URL"
 )
 foreach ($key in $requiredEnvVars) {
   $present = $mergedEnv.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($mergedEnv[$key])
-  Add-Result $results "Env var '$key' configured" $present (if ($present) { "ok" } else { "missing" })
+  $message = if ($present) { "ok" } else { "missing" }
+  Add-Result $results "Env var '$key' configured" $present $message
 }
+
+$sessionTtlPresent = $mergedEnv.ContainsKey("SESSION_TTL_DAYS") -and -not [string]::IsNullOrWhiteSpace($mergedEnv["SESSION_TTL_DAYS"])
+$sessionTtlMessage = if ($sessionTtlPresent) { "configured" } else { "missing (using default 30 days)" }
+Add-Result $results "Env var 'SESSION_TTL_DAYS' configured (optional)" $true $sessionTtlMessage
 
 foreach ($port in @(3000, 4000, 55432)) {
   $available = Test-PortAvailable $port

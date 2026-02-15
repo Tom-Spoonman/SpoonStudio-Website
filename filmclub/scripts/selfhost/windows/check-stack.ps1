@@ -67,7 +67,8 @@ if (Get-Command pm2 -ErrorAction SilentlyContinue) {
 if (Get-Command docker -ErrorAction SilentlyContinue) {
   try {
     $state = (docker inspect -f "{{.State.Running}}" filmclub-postgres 2>$null).Trim()
-    Add-Result $results "Postgres container running" ($state -eq "true") (if ($state) { $state } else { "missing" })
+    $message = if ([string]::IsNullOrWhiteSpace($state)) { "missing" } else { $state }
+    Add-Result $results "Postgres container running" ($state -eq "true") $message
   } catch {
     Add-Result $results "Postgres container running" $false $_.Exception.Message
   }
@@ -82,7 +83,8 @@ Test-Http -Name "Public web availability" -Url $PublicWebUrl -Results $results
 
 try {
   $cloudflaredRunning = @(Get-Process cloudflared -ErrorAction SilentlyContinue).Count -gt 0
-  Add-Result $results "cloudflared process running" $cloudflaredRunning (if ($cloudflaredRunning) { "running" } else { "not running" })
+  $message = if ($cloudflaredRunning) { "running" } else { "not running" }
+  Add-Result $results "cloudflared process running" $cloudflaredRunning $message
 } catch {
   Add-Result $results "cloudflared process running" $false $_.Exception.Message
 }

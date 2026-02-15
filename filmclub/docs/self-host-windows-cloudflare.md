@@ -109,6 +109,16 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\stop-app-stack.ps1
 ```
 
+## 6) Restart local stack
+One-command restart (stop -> start):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\restart-app-stack.ps1
+```
+
+Optional flags:
+1. `-SkipBuild`
+2. `-SkipPreflight`
+
 ## Notes
 1. This is cost-free but uptime depends on your machine and home network.
 2. Keep Windows updates/reboots in mind when planning availability.
@@ -165,6 +175,12 @@ powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
 2. Stop app stack:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\stop-app-stack.ps1
+```
+
+### Restart
+Use the wrapper:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\selfhost\windows\restart-app-stack.ps1 -SkipBuild
 ```
 
 ## Incident checklist
