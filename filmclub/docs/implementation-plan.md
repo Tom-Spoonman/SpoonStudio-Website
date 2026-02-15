@@ -93,3 +93,4 @@
 9. Added reusable UI hooks for history controls and policy guardrail state.
 10. Hardened API with history date-range validation and policy guardrail error codes.
 11. Added DB indexes for proposal/vote history query performance.
+12. Added production env templates and staging smoke script (`scripts/smoke-staging.ps1`).

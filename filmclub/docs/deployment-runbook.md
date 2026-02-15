@@ -9,12 +9,14 @@ This runbook defines a first production deployment path for:
 ## Required environment variables
 ### Web
 1. `NEXT_PUBLIC_API_BASE_URL` (public API base URL)
+2. Template: `env/web.production.example`
 
 ### API
 1. `DATABASE_URL` (managed PostgreSQL connection string)
 2. `CORS_ORIGIN` (`https://filmclub.spoon.studio`)
 3. `SESSION_TTL_DAYS` (for example `30`)
 4. `PORT` (platform-specific)
+5. Template: `env/api.production.example`
 
 ## Pre-deploy checks
 1. Migrations run successfully in target DB.
@@ -45,3 +47,11 @@ This runbook defines a first production deployment path for:
 3. Club settings update policy and guardrails enforce limits.
 4. Food order proposal approval updates balances.
 5. History endpoint responds with filtered and paginated data.
+
+## Automated smoke script
+Run from repo root after API/web are deployed:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\filmclub\scripts\smoke-staging.ps1 `
+  -ApiBaseUrl "https://api.filmclub.spoon.studio" `
+  -WebBaseUrl "https://filmclub.spoon.studio"
+```
