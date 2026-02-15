@@ -56,3 +56,5 @@
 5. Replaced debt-settlement user-id inputs with club-member selectors.
 6. Replaced attendance free-text names with club-member multi-select.
 7. Added logout endpoint and server-side session invalidation.
+8. Added Fastify request schemas for active API endpoints.
+9. Added API integration tests for auth/membership and approval-policy outcomes.

@@ -30,6 +30,7 @@ Starter development environment for the Filmclub companion web app.
 - `npm run dev:api` - Runs API on `http://localhost:4000`
 - `npm run build` - Builds all workspaces
 - `npm run typecheck` - Type-checks all workspaces
+- `npm run test --workspace @filmclub/api` - Runs API integration tests
 
 ## Documentation
 - Requirements: `docs/requirements.md`
