@@ -122,6 +122,33 @@ Header:
 Access rule:
 - Caller must be a member of the target club.
 
+### Update club approval policy
+`PUT /v1/clubs/:clubId/approval-policy`
+
+Header:
+`Authorization: Bearer <token>`
+
+Body examples:
+```json
+{
+  "approvalPolicy": {
+    "mode": "majority"
+  }
+}
+```
+
+```json
+{
+  "approvalPolicy": {
+    "mode": "fixed",
+    "requiredApprovals": 2
+  }
+}
+```
+
+Access rule:
+- Caller must be an `owner` membership in the target club.
+
 ## Next step toward production
 1. Replace display-name login with magic-link or OAuth.
 2. Hash/rotate join codes and add optional expiry/revocation.

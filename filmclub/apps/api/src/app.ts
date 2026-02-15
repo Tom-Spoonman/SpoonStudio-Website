@@ -8,12 +8,14 @@ import {
   deleteSessionByToken,
   findClubById,
   findClubByJoinCode,
+  findMembership,
   findUserByDisplayName,
   findUserBySessionToken,
   isMemberOfClub,
   listClubMembers,
   listClubsForUser,
-  listMembershipsForUser
+  listMembershipsForUser,
+  updateClubApprovalPolicy
 } from "./auth-membership-repo.js";
 import {
   castVoteAndEvaluate,
@@ -272,6 +274,55 @@ export const createApp = () => {
         return { error: "Forbidden" };
       }
       return listClubMembers(request.params.clubId);
+    }
+  );
+
+  app.put<{ Params: { clubId: string }; Body: { approvalPolicy: ApprovalPolicy } }>(
+    "/v1/clubs/:clubId/approval-policy",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        body: {
+          type: "object",
+          required: ["approvalPolicy"],
+          properties: {
+            approvalPolicy: {
+              type: "object",
+              required: ["mode"],
+              properties: {
+                mode: { type: "string", enum: ["unanimous", "majority", "fixed"] },
+                requiredApprovals: { type: "integer", minimum: 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const membership = await findMembership(request.params.clubId, user.id);
+      if (!membership) {
+        reply.code(403);
+        return { error: "Forbidden" };
+      }
+      if (membership.role !== "owner") {
+        reply.code(403);
+        return { error: "Only owners can update approval policy" };
+      }
+      if (!isValidApprovalPolicy(request.body.approvalPolicy)) {
+        reply.code(400);
+        return { error: "Invalid approvalPolicy" };
+      }
+      const club = await updateClubApprovalPolicy(request.params.clubId, request.body.approvalPolicy);
+      if (!club) {
+        reply.code(404);
+        return { error: "Club not found" };
+      }
+      return { club };
     }
   );
 

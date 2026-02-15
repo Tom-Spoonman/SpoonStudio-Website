@@ -56,6 +56,22 @@ const joinClub = async (app: ReturnType<typeof createApp>, token: string, joinCo
   assert.equal(response.statusCode, 200);
 };
 
+const updateClubApprovalPolicy = async (
+  app: ReturnType<typeof createApp>,
+  token: string,
+  clubId: string,
+  approvalPolicy: { mode: "unanimous" | "majority" | "fixed"; requiredApprovals?: number }
+) => {
+  const response = await app.inject({
+    method: "PUT",
+    url: `/v1/clubs/${clubId}/approval-policy`,
+    headers: { Authorization: `Bearer ${token}` },
+    payload: { approvalPolicy }
+  });
+  assert.equal(response.statusCode, 200);
+  return response.json() as { club: { approvalPolicy: { mode: string; requiredApprovals?: number } } };
+};
+
 const createProposal = async (app: ReturnType<typeof createApp>, token: string, clubId: string) => {
   const response = await app.inject({
     method: "POST",
@@ -133,6 +149,48 @@ test("auth + membership flow creates and joins club", async () => {
     assert.equal(membersResponse.statusCode, 200);
     const members = membersResponse.json() as Array<{ user: { id: string } }>;
     assert.equal(members.length, 2);
+  } finally {
+    await app.close();
+  }
+});
+
+test("club owner can update approval policy", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const createdClub = await createClub(app, alice.token, "Settings Club", { mode: "majority" });
+    const updated = await updateClubApprovalPolicy(app, alice.token, createdClub.club.id, {
+      mode: "fixed",
+      requiredApprovals: 2
+    });
+    assert.equal(updated.club.approvalPolicy.mode, "fixed");
+    assert.equal(updated.club.approvalPolicy.requiredApprovals, 2);
+  } finally {
+    await app.close();
+  }
+});
+
+test("non-owner member cannot update approval policy", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const createdClub = await createClub(app, alice.token, "Settings Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    await joinClub(app, bob.token, createdClub.club.joinCode);
+
+    const response = await app.inject({
+      method: "PUT",
+      url: `/v1/clubs/${createdClub.club.id}/approval-policy`,
+      headers: { Authorization: `Bearer ${bob.token}` },
+      payload: {
+        approvalPolicy: {
+          mode: "unanimous"
+        }
+      }
+    });
+    assert.equal(response.statusCode, 403);
   } finally {
     await app.close();
   }

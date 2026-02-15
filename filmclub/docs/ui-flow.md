@@ -9,6 +9,7 @@ This UI slice provides a working web interface for:
 5. Proposal list/filter/detail
 6. Approve/reject voting
 7. Food order capture and current member balances
+8. Club settings panel to update approval policy (owner only)
 
 ## Current implementation
 Location:
@@ -23,6 +24,7 @@ Behavior:
 5. Logout triggers server-side session invalidation (`POST /v1/auth/logout`) before local token cleanup.
 6. Food order form can create split ledger entries and refresh club balances.
 7. Food order supports both equal split and custom split.
+8. Active club settings can update approval policy from the UI when user role is `owner`.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.

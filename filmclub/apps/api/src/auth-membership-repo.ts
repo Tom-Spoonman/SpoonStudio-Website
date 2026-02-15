@@ -182,6 +182,19 @@ export const findClubById = async (clubId: string) => {
   return result.rows[0] ? mapClub(result.rows[0]) : null;
 };
 
+export const updateClubApprovalPolicy = async (clubId: string, policy: ApprovalPolicy) => {
+  const result = await pool.query<DbClubRow>(
+    `
+    UPDATE clubs
+    SET approval_mode = $2, required_approvals = $3
+    WHERE id = $1
+    RETURNING id, name, join_code, approval_mode, required_approvals, created_by_user_id, created_at
+    `,
+    [clubId, policy.mode, policy.requiredApprovals ?? null]
+  );
+  return result.rows[0] ? mapClub(result.rows[0]) : null;
+};
+
 export const findMembership = async (clubId: string, userId: string) => {
   const result = await pool.query<DbMembershipRow>(
     `

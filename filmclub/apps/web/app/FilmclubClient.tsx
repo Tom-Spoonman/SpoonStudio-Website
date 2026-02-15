@@ -121,6 +121,8 @@ export default function FilmclubClient() {
   const [joinCode, setJoinCode] = useState("");
   const [policyMode, setPolicyMode] = useState<ApprovalPolicy["mode"]>("majority");
   const [fixedApprovals, setFixedApprovals] = useState(2);
+  const [settingsPolicyMode, setSettingsPolicyMode] = useState<ApprovalPolicy["mode"]>("majority");
+  const [settingsFixedApprovals, setSettingsFixedApprovals] = useState(2);
 
   const [proposalEntity, setProposalEntity] = useState<RecordEntity>("movie_watch");
   const [movieTitle, setMovieTitle] = useState("");
@@ -142,6 +144,9 @@ export default function FilmclubClient() {
   const [customShares, setCustomShares] = useState<Array<{ userId: string; amount: string }>>([]);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const activeClubEntry = clubs.find((item) => item.club.id === activeClubId) ?? null;
+  const activeClub = activeClubEntry?.club ?? null;
+  const activeMembership = activeClubEntry?.membership ?? null;
 
   const loadHealth = async () => {
     try {
@@ -304,6 +309,16 @@ export default function FilmclubClient() {
   }, [token, activeClubId]);
 
   useEffect(() => {
+    if (!activeClub) {
+      setSettingsPolicyMode("majority");
+      setSettingsFixedApprovals(2);
+      return;
+    }
+    setSettingsPolicyMode(activeClub.approvalPolicy.mode);
+    setSettingsFixedApprovals(activeClub.approvalPolicy.requiredApprovals ?? 2);
+  }, [activeClub]);
+
+  useEffect(() => {
     if (clubMembers.length === 0) {
       setAttendanceMemberIds([]);
       setOrderPayerUserId("");
@@ -425,6 +440,41 @@ export default function FilmclubClient() {
     }
     setJoinCode("");
     setMessage("Joined club.");
+    await loadClubs();
+  };
+
+  const updateClubPolicy = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeClubId) {
+      setMessage("Select a club first.");
+      return;
+    }
+    if (activeMembership?.role !== "owner") {
+      setMessage("Only club owners can update approval policy.");
+      return;
+    }
+    if (settingsPolicyMode === "fixed" && (!Number.isInteger(settingsFixedApprovals) || settingsFixedApprovals < 1)) {
+      setMessage("Fixed approvals must be an integer greater than or equal to 1.");
+      return;
+    }
+    const approvalPolicy: ApprovalPolicy =
+      settingsPolicyMode === "fixed"
+        ? { mode: "fixed", requiredApprovals: settingsFixedApprovals }
+        : { mode: settingsPolicyMode };
+
+    setBusy(true);
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/approval-policy`, {
+      method: "PUT",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ approvalPolicy })
+    });
+    const data = (await response.json()) as { error?: string };
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(data.error ?? "Update approval policy failed");
+      return;
+    }
+    setMessage("Approval policy updated.");
     await loadClubs();
   };
 
@@ -698,6 +748,40 @@ export default function FilmclubClient() {
 
           {activeClubId && (
             <>
+              <div className="card">
+                <h2>Club Settings</h2>
+                <p>
+                  Current policy: <strong>{activeClub?.approvalPolicy.mode}</strong>
+                  {activeClub && activeClub.approvalPolicy.mode === "fixed" && activeClub.approvalPolicy.requiredApprovals
+                    ? ` (${activeClub.approvalPolicy.requiredApprovals} approvals)`
+                    : ""}
+                </p>
+                {activeMembership?.role !== "owner" && <p>Only owners can edit policy settings.</p>}
+                <form onSubmit={updateClubPolicy} className="stack">
+                  <select
+                    value={settingsPolicyMode}
+                    onChange={(event) => setSettingsPolicyMode(event.target.value as ApprovalPolicy["mode"])}
+                    disabled={busy || activeMembership?.role !== "owner"}
+                  >
+                    <option value="majority">Majority</option>
+                    <option value="unanimous">Unanimous</option>
+                    <option value="fixed">Fixed approvals</option>
+                  </select>
+                  {settingsPolicyMode === "fixed" && (
+                    <input
+                      type="number"
+                      min={1}
+                      value={settingsFixedApprovals}
+                      onChange={(event) => setSettingsFixedApprovals(Number(event.target.value))}
+                      disabled={busy || activeMembership?.role !== "owner"}
+                    />
+                  )}
+                  <button type="submit" disabled={busy || activeMembership?.role !== "owner"}>
+                    Save Policy
+                  </button>
+                </form>
+              </div>
+
               <div className="card">
                 <h2>Create Proposal</h2>
                 <form onSubmit={submitProposal} className="stack">

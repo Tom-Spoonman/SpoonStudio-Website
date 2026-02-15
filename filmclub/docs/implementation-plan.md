@@ -84,3 +84,4 @@
 ## Step 5 progress notes
 1. Extracted workflow into `apps/web/app/FilmclubClient.tsx`.
 2. Simplified `apps/web/app/page.tsx` to a thin wrapper component.
+3. Added owner-only club settings flow to update approval policy (`PUT /v1/clubs/:clubId/approval-policy`).
