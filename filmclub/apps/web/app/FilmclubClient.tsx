@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const tokenStorageKey = "filmclub_token";
@@ -99,7 +100,35 @@ interface ClubDebtMatrixRow {
   amount: number;
 }
 
-export default function FilmclubClient() {
+interface ClubHistoryItem {
+  proposalId: string;
+  clubId: string;
+  entity: RecordEntity;
+  payload: unknown;
+  proposerUserId: string;
+  proposerDisplayName: string;
+  status: PendingChangeStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  committedAt?: string;
+  committedByUserId?: string;
+  committedByDisplayName?: string;
+  votes: Array<{
+    id: string;
+    voterUserId: string;
+    voterDisplayName: string;
+    decision: "approve" | "reject";
+    createdAt: string;
+  }>;
+}
+
+interface FilmclubClientProps {
+  view?: "auth" | "clubs" | "club" | "proposals";
+  routeClubId?: string;
+}
+
+export default function FilmclubClient({ view = "club", routeClubId }: FilmclubClientProps) {
+  const router = useRouter();
   const [health, setHealth] = useState<string>("checking");
   const [token, setToken] = useState<string>("");
   const [me, setMe] = useState<User | null>(null);
@@ -110,6 +139,7 @@ export default function FilmclubClient() {
   const [balances, setBalances] = useState<ClubBalance[]>([]);
   const [balanceSummary, setBalanceSummary] = useState<ClubBalanceSummary[]>([]);
   const [debtMatrix, setDebtMatrix] = useState<ClubDebtMatrixRow[]>([]);
+  const [history, setHistory] = useState<ClubHistoryItem[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<ProposalDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PendingChangeStatus>("pending");
   const [message, setMessage] = useState<string>("");
@@ -147,6 +177,11 @@ export default function FilmclubClient() {
   const activeClubEntry = clubs.find((item) => item.club.id === activeClubId) ?? null;
   const activeClub = activeClubEntry?.club ?? null;
   const activeMembership = activeClubEntry?.membership ?? null;
+  const showAuthOnly = view === "auth";
+  const showClubList = view === "clubs";
+  const showClubWorkspace = view === "club" || view === "proposals";
+  const showProposalsPanel = view === "proposals" || view === "club";
+  const showOverviewPanels = view === "club";
 
   const loadHealth = async () => {
     try {
@@ -188,9 +223,29 @@ export default function FilmclubClient() {
     }
     const data = (await response.json()) as ClubListItem[];
     setClubs(data);
+    if (routeClubId && data.some((item) => item.club.id === routeClubId)) {
+      setActiveClubId(routeClubId);
+      return;
+    }
     if (data.length > 0 && !data.some((item) => item.club.id === activeClubId)) {
       setActiveClubId(data[0].club.id);
     }
+  };
+
+  const loadHistory = async () => {
+    if (!token || !activeClubId) {
+      setHistory([]);
+      return;
+    }
+    const response = await fetch(`${apiBase}/v1/clubs/${activeClubId}/history?limit=100`, {
+      headers: authHeaders,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as ClubHistoryItem[];
+    setHistory(data);
   };
 
   const loadProposals = async () => {
@@ -309,6 +364,16 @@ export default function FilmclubClient() {
   }, [token, activeClubId]);
 
   useEffect(() => {
+    loadHistory();
+  }, [token, activeClubId]);
+
+  useEffect(() => {
+    if (routeClubId) {
+      setActiveClubId(routeClubId);
+    }
+  }, [routeClubId]);
+
+  useEffect(() => {
     if (!activeClub) {
       setSettingsPolicyMode("majority");
       setSettingsFixedApprovals(2);
@@ -418,6 +483,18 @@ export default function FilmclubClient() {
     setClubName("");
     setMessage(`Created club. Join code: ${data.club?.joinCode ?? "n/a"}`);
     await loadClubs();
+    if (showClubList) {
+      const clubsResponse = await fetch(`${apiBase}/v1/me/clubs`, {
+        headers: authHeaders,
+        cache: "no-store"
+      });
+      if (clubsResponse.ok) {
+        const list = (await clubsResponse.json()) as ClubListItem[];
+        if (list.length > 0) {
+          router.push(`/clubs/${list[0].club.id}`);
+        }
+      }
+    }
   };
 
   const submitJoinClub = async (event: FormEvent<HTMLFormElement>) => {
@@ -441,6 +518,19 @@ export default function FilmclubClient() {
     setJoinCode("");
     setMessage("Joined club.");
     await loadClubs();
+    if (showClubList) {
+      const clubsResponse = await fetch(`${apiBase}/v1/me/clubs`, {
+        headers: authHeaders,
+        cache: "no-store"
+      });
+      if (clubsResponse.ok) {
+        const list = (await clubsResponse.json()) as ClubListItem[];
+        const joined = list.find((item) => item.club.joinCode.toUpperCase() === joinCode.trim().toUpperCase());
+        if (joined) {
+          router.push(`/clubs/${joined.club.id}`);
+        }
+      }
+    }
   };
 
   const updateClubPolicy = async (event: FormEvent<HTMLFormElement>) => {
@@ -663,6 +753,15 @@ export default function FilmclubClient() {
     <main>
       <h1>filmclub</h1>
       <p>API status: <span className="pill">{health}</span></p>
+      <p>
+        <a href="/auth">Auth</a> | <a href="/clubs">Clubs</a>
+        {activeClubId ? (
+          <>
+            {" "} | <a href={`/clubs/${activeClubId}`}>Club</a> |{" "}
+            <a href={`/clubs/${activeClubId}/proposals`}>Proposals</a>
+          </>
+        ) : null}
+      </p>
 
       {message && <div className="card"><p>{message}</p></div>}
 
@@ -691,7 +790,8 @@ export default function FilmclubClient() {
             <button onClick={logout} disabled={busy}>Logout</button>
           </div>
 
-          <div className="grid2">
+          {!showAuthOnly && (
+            <div className="grid2">
             <div className="card">
               <h2>Create Club</h2>
               <form onSubmit={createClub} className="stack">
@@ -728,9 +828,11 @@ export default function FilmclubClient() {
                 <button type="submit" disabled={busy}>Join</button>
               </form>
             </div>
-          </div>
+            </div>
+          )}
 
-          <div className="card">
+          {!showAuthOnly && (
+            <div className="card">
             <h2>My Clubs</h2>
             <div className="stack">
               {clubs.length === 0 && <p>No clubs yet.</p>}
@@ -738,15 +840,19 @@ export default function FilmclubClient() {
                 <button
                   key={item.club.id}
                   className={item.club.id === activeClubId ? "active" : ""}
-                  onClick={() => setActiveClubId(item.club.id)}
+                  onClick={() => {
+                    setActiveClubId(item.club.id);
+                    router.push(`/clubs/${item.club.id}`);
+                  }}
                 >
                   {item.club.name} ({item.membership.role}) - code {item.club.joinCode}
                 </button>
               ))}
             </div>
-          </div>
+            </div>
+          )}
 
-          {activeClubId && (
+          {activeClubId && showClubWorkspace && (
             <>
               <div className="card">
                 <h2>Club Settings</h2>
@@ -782,7 +888,8 @@ export default function FilmclubClient() {
                 </form>
               </div>
 
-              <div className="card">
+              {showOverviewPanels && (
+                <div className="card">
                 <h2>Create Proposal</h2>
                 <form onSubmit={submitProposal} className="stack">
                   <select
@@ -889,9 +996,11 @@ export default function FilmclubClient() {
                   )}
                   <button type="submit" disabled={busy}>Submit Proposal</button>
                 </form>
-              </div>
+                </div>
+              )}
 
-              <div className="card">
+              {showOverviewPanels && (
+                <div className="card">
                 <h2>Food Order + Balances</h2>
                 <form onSubmit={submitFoodOrder} className="stack">
                   <input
@@ -992,9 +1101,11 @@ export default function FilmclubClient() {
                     {row.fromDisplayName} owes {row.toDisplayName}: {row.amount.toFixed(2)} {row.currency}
                   </p>
                 ))}
-              </div>
+                </div>
+              )}
 
-              <div className="grid2">
+              {showProposalsPanel && (
+                <div className="grid2">
                 <div className="card">
                   <h2>Proposals</h2>
                   <div className="row">
@@ -1046,6 +1157,33 @@ export default function FilmclubClient() {
                     </div>
                   )}
                 </div>
+                </div>
+              )}
+
+              <div className="card">
+                <h2>History</h2>
+                {history.length === 0 && <p>No history yet.</p>}
+                {history.map((item) => (
+                  <div key={`history-${item.proposalId}`} className="stack">
+                    <p>
+                      <strong>{item.entity}</strong> by {item.proposerDisplayName} on{" "}
+                      {new Date(item.createdAt).toLocaleString()}
+                    </p>
+                    <p>
+                      Status: {item.status}
+                      {item.committedAt
+                        ? ` | Committed by ${item.committedByDisplayName ?? item.committedByUserId} at ${new Date(item.committedAt).toLocaleString()}`
+                        : ""}
+                    </p>
+                    <pre>{JSON.stringify(item.payload, null, 2)}</pre>
+                    <p>
+                      Votes:{" "}
+                      {item.votes.length === 0
+                        ? "none"
+                        : item.votes.map((vote) => `${vote.voterDisplayName}:${vote.decision}`).join(", ")}
+                    </p>
+                  </div>
+                ))}
               </div>
             </>
           )}

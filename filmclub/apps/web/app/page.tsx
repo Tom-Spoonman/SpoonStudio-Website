@@ -1,5 +1,5 @@
 import FilmclubClient from "./FilmclubClient";
 
 export default function HomePage() {
-  return <FilmclubClient />;
+  return <FilmclubClient view="clubs" />;
 }

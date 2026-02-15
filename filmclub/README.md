@@ -40,6 +40,7 @@ Starter development environment for the Filmclub companion web app.
 - Trust confirmation (phase 2): `docs/trust-confirmation.md`
 - UI flow (step 3): `docs/ui-flow.md`
 - Debt ledger foundations (step 4): `docs/debt-ledger.md`
+- History and audit trail: `docs/history-audit.md`
 
 ## Suggested deployment split
 - `spoon.studio/filmclub` or `filmclub.spoon.studio` -> deploy `apps/web`

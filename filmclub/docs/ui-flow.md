@@ -13,8 +13,11 @@ This UI slice provides a working web interface for:
 
 ## Current implementation
 Location:
-- `apps/web/app/page.tsx` (wrapper)
 - `apps/web/app/FilmclubClient.tsx` (client workflow component)
+- `apps/web/app/auth/page.tsx`
+- `apps/web/app/clubs/page.tsx`
+- `apps/web/app/clubs/[clubId]/page.tsx`
+- `apps/web/app/clubs/[clubId]/proposals/page.tsx`
 
 Behavior:
 1. Auth token is stored in browser `localStorage` (`filmclub_token`).
@@ -25,6 +28,8 @@ Behavior:
 6. Food order form can create split ledger entries and refresh club balances.
 7. Food order supports both equal split and custom split.
 8. Active club settings can update approval policy from the UI when user role is `owner`.
+9. Club routes are split into auth, clubs index, club workspace, and club proposals views.
+10. Club workspace includes history/audit timeline for proposals and votes.
 
 ## Tradeoffs
 1. Single-page implementation to move quickly through workflow validation.
@@ -33,6 +38,6 @@ Behavior:
 4. Attendance now uses member multi-select sourced from club memberships.
 
 ## Next UI improvements
-1. Split into dedicated routes (`/auth`, `/clubs`, `/clubs/:id/proposals`).
+1. Continue route decomposition with dedicated components per page section.
 2. Add richer attendance UX (searchable picker/chips) instead of native multi-select.
 3. Replace local token storage with more secure session handling.

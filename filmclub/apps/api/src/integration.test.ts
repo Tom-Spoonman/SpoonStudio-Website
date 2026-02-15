@@ -478,3 +478,72 @@ test("debt settlement proposal offsets balances after approval", async () => {
     await app.close();
   }
 });
+
+test("club history returns lifecycle details including votes and commit metadata", async () => {
+  const app = createApp();
+  await app.ready();
+  try {
+    const alice = await register(app, uniqueName("alice"));
+    const club = await createClub(app, alice.token, "History Club", { mode: "majority" });
+    const bob = await register(app, uniqueName("bob"));
+    const carol = await register(app, uniqueName("carol"));
+    await joinClub(app, bob.token, club.club.joinCode);
+    await joinClub(app, carol.token, club.club.joinCode);
+
+    const proposalCreate = await app.inject({
+      method: "POST",
+      url: "/v1/proposed-changes",
+      headers: { Authorization: `Bearer ${alice.token}` },
+      payload: {
+        clubId: club.club.id,
+        entity: "movie_watch",
+        payload: {
+          title: "Arrival",
+          watchedOn: "2026-02-15"
+        }
+      }
+    });
+    assert.equal(proposalCreate.statusCode, 201);
+    const proposal = proposalCreate.json() as { id: string };
+
+    const approveBob = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${bob.token}` }
+    });
+    assert.equal(approveBob.statusCode, 200);
+
+    const approveCarol = await app.inject({
+      method: "POST",
+      url: `/v1/proposed-changes/${proposal.id}/approve`,
+      headers: { Authorization: `Bearer ${carol.token}` }
+    });
+    assert.equal(approveCarol.statusCode, 200);
+
+    const historyResponse = await app.inject({
+      method: "GET",
+      url: `/v1/clubs/${club.club.id}/history?limit=10`,
+      headers: { Authorization: `Bearer ${alice.token}` }
+    });
+    assert.equal(historyResponse.statusCode, 200);
+    const history = historyResponse.json() as Array<{
+      proposalId: string;
+      proposerDisplayName: string;
+      status: string;
+      committedAt?: string;
+      committedByDisplayName?: string;
+      votes: Array<{ voterDisplayName: string; decision: string }>;
+    }>;
+    assert.ok(history.length >= 1);
+    const created = history.find((item) => item.proposalId === proposal.id);
+    assert.ok(created);
+    assert.equal(created?.proposerDisplayName.startsWith("alice-"), true);
+    assert.equal(created?.status, "approved");
+    assert.ok(created?.committedAt);
+    assert.ok(created?.committedByDisplayName);
+    assert.equal(created?.votes.length, 2);
+    assert.equal(created?.votes.every((vote) => vote.decision === "approve"), true);
+  } finally {
+    await app.close();
+  }
+});

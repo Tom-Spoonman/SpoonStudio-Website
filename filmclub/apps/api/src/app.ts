@@ -28,6 +28,7 @@ import {
 } from "./proposed-change-repo.js";
 import { listClubBalanceSummary, listClubBalances, listClubDebtMatrix } from "./ledger-repo.js";
 import { isValidPayloadForEntity } from "./proposal-payload.js";
+import { listClubHistory } from "./history-repo.js";
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -274,6 +275,35 @@ export const createApp = () => {
         return { error: "Forbidden" };
       }
       return listClubMembers(request.params.clubId);
+    }
+  );
+
+  app.get<{ Params: { clubId: string }; Querystring: { limit?: string } }>(
+    "/v1/clubs/:clubId/history",
+    {
+      schema: {
+        params: clubIdParamsSchema,
+        querystring: {
+          type: "object",
+          properties: {
+            limit: { type: "string", pattern: "^[0-9]+$" }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const user = await getCurrentUser(request.headers.authorization);
+      if (!user) {
+        reply.code(401);
+        return { error: "Unauthorized" };
+      }
+      const isMember = await isMemberOfClub(request.params.clubId, user.id);
+      if (!isMember) {
+        reply.code(403);
+        return { error: "Forbidden" };
+      }
+      const limit = request.query.limit ? Number(request.query.limit) : 50;
+      return listClubHistory(request.params.clubId, limit);
     }
   );
 
