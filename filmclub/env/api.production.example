@@ -1,5 +1,6 @@
 NODE_ENV=production
 PORT=4000
+API_PORT=4000
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<db>
 CORS_ORIGIN=https://filmclub.spoon.studio
 SESSION_TTL_DAYS=30

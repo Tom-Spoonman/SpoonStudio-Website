@@ -6,6 +6,9 @@ This runbook defines a first production deployment path for:
 2. API service (`apps/api`) on a separate runtime
 3. Managed PostgreSQL
 
+For self-hosting on Windows instead of managed infra, use:
+- `docs/self-host-windows-cloudflare.md`
+
 ## Required environment variables
 ### Web
 1. `NEXT_PUBLIC_API_BASE_URL` (public API base URL)
@@ -15,7 +18,7 @@ This runbook defines a first production deployment path for:
 1. `DATABASE_URL` (managed PostgreSQL connection string)
 2. `CORS_ORIGIN` (`https://filmclub.spoon.studio`)
 3. `SESSION_TTL_DAYS` (for example `30`)
-4. `PORT` (platform-specific)
+4. `PORT` or `API_PORT` (platform-specific)
 5. Template: `env/api.production.example`
 
 ## Pre-deploy checks

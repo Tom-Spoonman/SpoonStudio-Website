@@ -1,0 +1,9 @@
+tunnel: <TUNNEL_UUID>
+credentials-file: C:\Users\<USER>\.cloudflared\<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: filmclub.spoon.studio
+    service: http://localhost:3000
+  - hostname: api.filmclub.spoon.studio
+    service: http://localhost:4000
+  - service: http_status:404

@@ -42,6 +42,7 @@ Starter development environment for the Filmclub companion web app.
 - Debt ledger foundations (step 4): `docs/debt-ledger.md`
 - History and audit trail: `docs/history-audit.md`
 - Deployment runbook: `docs/deployment-runbook.md`
+- Self-host (Windows + Cloudflare): `docs/self-host-windows-cloudflare.md`
 - Production env templates: `env/api.production.example`, `env/web.production.example`
 
 ## Suggested deployment split

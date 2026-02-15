@@ -94,3 +94,4 @@
 10. Hardened API with history date-range validation and policy guardrail error codes.
 11. Added DB indexes for proposal/vote history query performance.
 12. Added production env templates and staging smoke script (`scripts/smoke-staging.ps1`).
+13. Added self-host Windows + Cloudflare tunnel docs and automation scripts.

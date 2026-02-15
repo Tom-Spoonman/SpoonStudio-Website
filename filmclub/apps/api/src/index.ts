@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createApp } from "./app.js";
 import { runMigrations } from "./db.js";
 
-const port = Number(process.env.API_PORT ?? 4000);
+const port = Number(process.env.API_PORT ?? process.env.PORT ?? 4000);
 
 const start = async () => {
   await runMigrations();
